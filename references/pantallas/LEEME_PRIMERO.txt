@@ -1,0 +1,23 @@
+PROTOTIPO VISUAL — PANEL ADMINISTRATIVO TAXISUR
+
+1. Descomprime todo el archivo ZIP.
+2. Abre ABRIR_AQUI.html con Chrome, Edge o Firefox.
+3. Elige la pantalla que deseas revisar.
+
+También puedes abrir directamente:
+- inicio.html
+- login.html
+- conductores.html
+- conductor-detalle.html
+- mapa.html
+- solicitudes.html
+- tarifas.html
+- configuracion.html
+
+Todos los datos son ficticios. El prototipo no está conectado al backend.
+
+Credenciales del login de demostración:
+Correo: admin@taxisur.demo
+Contraseña: TaxiSur2026!
+
+El mapa requiere conexión a internet para cargar las calles de OpenStreetMap.

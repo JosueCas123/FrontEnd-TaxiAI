@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-taxi: #f6c343;
+  --color-ink-950: #111e2f;
+  --color-surface: #f5f7fa;
+  --color-gris: #6a7686;
+  --color-azul: #3977cf;
+  --color-verde: #168160;
+  --color-ambar: #a56e0b;
+
+  --font-display: 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'Segoe UI', system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-surface);
+}
