@@ -29,9 +29,13 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     let message = `Error ${res.status}`
     try {
       const body = (await res.json()) as unknown
-      if (typeof body === 'object' && body !== null) {
+      if (typeof body === 'object' && body !== null && !Array.isArray(body)) {
         const b = body as Record<string, unknown>
-        if (typeof b.message === 'string') message = b.message
+        const nested = typeof b.error === 'object' && b.error !== null && !Array.isArray(b.error)
+          ? (b.error as Record<string, unknown>).message
+          : undefined
+        if (typeof nested === 'string') message = nested
+        else if (typeof b.message === 'string') message = b.message
         else if (typeof b.error === 'string') message = b.error
       }
     } catch {
