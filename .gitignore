@@ -19,3 +19,6 @@ npm-debug.log*
 # Env
 *.local
 .env.*
+
+# playwright
+.playwright-mcp/*
