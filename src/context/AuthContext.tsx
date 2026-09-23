@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { setToken } from '../api/token'
+import { useQueryClient } from '@tanstack/react-query'
+import { getSessionId, setToken } from '../api/token'
 
 interface AuthContextValue {
   token: string | null
@@ -13,20 +13,25 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null)
-  const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const cerrarSesion = () => {
+    if (getSessionId() === null) return
     setToken(null)
     setTokenState(null)
-    navigate('/login', { replace: true })
+    // Cancellation starts synchronously; never clear B after awaiting A.
+    void queryClient.cancelQueries()
+    queryClient.clear()
   }
 
   useEffect(() => {
-    const desautorizado = () => cerrarSesion()
+    const desautorizado = (event: Event) => {
+      const origin = (event as CustomEvent<{ sessionId: number | null }>).detail?.sessionId
+      if (origin != null && origin === getSessionId()) cerrarSesion()
+    }
     window.addEventListener('auth:unauthorized', desautorizado)
     return () => window.removeEventListener('auth:unauthorized', desautorizado)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [queryClient])
 
   const iniciarSesion = (nuevoToken: string) => {
     setToken(nuevoToken)

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiFetch } from './client'
-import { setToken } from './token'
+import { getSessionId, setToken } from './token'
 
 const fetchMock = vi.fn<typeof fetch>()
 const dispatchEvent = vi.fn()
@@ -45,19 +45,60 @@ describe('HTTP errors', () => {
     expect(dispatchEvent).not.toHaveBeenCalled()
   })
 
-  it.each(['{"error":{"message":"Backend message"}}', '<html>Unauthorized</html>'])(
-    'M06 401 body %s', async (body) => {
+  it.each([
+    ['{"error":{"message":"Backend message"}}', 'Backend message'],
+    ['<html>Unauthorized</html>', 'Sesi\u00f3n expirada o no autorizada'],
+    ['null', 'Sesi\u00f3n expirada o no autorizada'],
+    ['{"error":{"message":7}}', 'Sesi\u00f3n expirada o no autorizada'],
+    ['{"message":" "}', 'Sesi\u00f3n expirada o no autorizada'],
+  ])(
+    'M06 / U01-U02 401 body %s', async (body, message) => {
       const response = new Response(body, { status: 401 })
       const json = vi.spyOn(response, 'json')
       fetchMock.mockResolvedValue(response)
       const error = await apiFetch('/test').catch((reason: unknown) => reason)
       expect(error).toBeInstanceOf(ApiError)
-      expect(error).toMatchObject({ status: 401, message: 'Sesi\u00f3n expirada o no autorizada' })
+      expect(error).toMatchObject({ status: 401, message })
       expect(dispatchEvent).toHaveBeenCalledExactlyOnceWith(expect.any(CustomEvent))
       expect(dispatchEvent.mock.calls[0][0].type).toBe('auth:unauthorized')
-      expect(json).not.toHaveBeenCalled()
+      expect(dispatchEvent.mock.calls[0][0].detail).toEqual({ sessionId: null })
+      expect(json).toHaveBeenCalledOnce()
     },
   )
+})
+
+it('U03 403 preserves permission error without notifying', async () => {
+  fetchMock.mockResolvedValue(new Response('{"error":{"message":"Sin permiso"}}', { status: 403 }))
+  await expect(apiFetch('/test')).rejects.toMatchObject({ status: 403, message: 'Sin permiso' })
+  expect(dispatchEvent).not.toHaveBeenCalled()
+})
+
+it.each(['different', 'same', 'public'])('U05 late 401 origin: %s', async (variant) => {
+  setToken('same')
+  const origin = variant === 'public' ? null : getSessionId()
+  let resolve!: (response: Response) => void
+  fetchMock.mockReturnValue(new Promise<Response>(r => { resolve = r }))
+  const pending = apiFetch(variant === 'public' ? '/api/auth/admin/login' : '/test').catch(e => e)
+  setToken(null)
+  setToken(variant === 'different' ? 'different' : 'same')
+  expect(getSessionId()).not.toBe(origin)
+  resolve(new Response('{"message":"Anterior"}', { status: 401 }))
+  expect(await pending).toMatchObject({ status: 401, message: 'Anterior' })
+  expect(dispatchEvent).toHaveBeenCalledOnce()
+  expect(dispatchEvent.mock.calls[0][0].detail).toEqual({ sessionId: origin })
+  if (variant === 'public') expect(new Headers(fetchMock.mock.calls[0][1]?.headers).has('Authorization')).toBe(false)
+})
+
+it('P2 rejects late success even with the same token', async () => {
+  setToken('same')
+  let resolve!: (response: Response) => void
+  fetchMock.mockReturnValue(new Promise<Response>(r => { resolve = r }))
+  const pending = apiFetch('/test').catch(e => e)
+  setToken(null)
+  setToken('same')
+  resolve(new Response('{"private":"A"}'))
+  expect(await pending).toMatchObject({ name: 'AbortError' })
+  expect(dispatchEvent).not.toHaveBeenCalled()
 })
 
 it('M07 204 never parses JSON', async () => {

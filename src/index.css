@@ -8,6 +8,12 @@
   --color-azul: #3977cf;
   --color-verde: #168160;
   --color-ambar: #a56e0b;
+  --color-primary: #f6c343;
+  --color-primary-foreground: #111e2f;
+  --color-background: #f5f7fa;
+  --color-foreground: #111e2f;
+  --color-ring: #111e2f;
+  --color-destructive: #b91c1c;
 
   --font-display: 'Segoe UI', system-ui, sans-serif;
   --font-sans: 'Segoe UI', system-ui, sans-serif;

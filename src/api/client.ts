@@ -1,4 +1,4 @@
-import { getToken } from './token'
+import { getSessionId, getToken } from './token'
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 
@@ -15,18 +15,16 @@ export class ApiError extends Error {
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers)
   headers.set('Content-Type', 'application/json')
-  const token = getToken()
+  const isLogin = path === '/api/auth/admin/login'
+  const sessionId = isLogin ? null : getSessionId()
+  const token = isLogin ? null : getToken()
+  if (isLogin) headers.delete('Authorization')
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
 
-  if (res.status === 401) {
-    window.dispatchEvent(new CustomEvent('auth:unauthorized'))
-    throw new ApiError(401, 'Sesión expirada o no autorizada')
-  }
-
   if (!res.ok) {
-    let message = `Error ${res.status}`
+    let message = res.status === 401 ? 'Sesión expirada o no autorizada' : `Error ${res.status}`
     try {
       const body = (await res.json()) as unknown
       if (typeof body === 'object' && body !== null && !Array.isArray(body)) {
@@ -34,18 +32,25 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
         const nested = typeof b.error === 'object' && b.error !== null && !Array.isArray(b.error)
           ? (b.error as Record<string, unknown>).message
           : undefined
-        if (typeof nested === 'string') message = nested
-        else if (typeof b.message === 'string') message = b.message
-        else if (typeof b.error === 'string') message = b.error
+        if (typeof nested === 'string' && nested.trim()) message = nested
+        else if (typeof b.message === 'string' && b.message.trim()) message = b.message
+        else if (typeof b.error === 'string' && b.error.trim()) message = b.error
       }
     } catch {
       // cuerpo no JSON: se mantiene el mensaje genérico
     }
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized', { detail: { sessionId } }))
+    }
     throw new ApiError(res.status, message)
   }
 
-  if (res.status === 204) return undefined as T
-  return (await res.json()) as T
+  const data = res.status === 204 ? undefined : await res.json()
+  // A completed transport must not deliver old session data to success callbacks.
+  if (sessionId !== null && sessionId !== getSessionId()) {
+    throw new DOMException('Solicitud de una sesion anterior', 'AbortError')
+  }
+  return data as T
 }
 
 export const http = {
