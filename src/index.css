@@ -15,6 +15,13 @@
   --color-ring: #111e2f;
   --color-destructive: #b91c1c;
 
+  --color-sidebar: #111e2f;
+  --color-sidebar-foreground: #ffffff;
+  --color-sidebar-accent: #ffffff1f;
+  --color-sidebar-accent-foreground: #ffffff;
+  --color-sidebar-border: #ffffff33;
+  --color-sidebar-ring: #f6c343;
+
   --font-display: 'Segoe UI', system-ui, sans-serif;
   --font-sans: 'Segoe UI', system-ui, sans-serif;
 }
