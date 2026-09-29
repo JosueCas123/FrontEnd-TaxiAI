@@ -97,27 +97,27 @@ export default function Login() {
 
   return (
     <main className="grid min-h-dvh bg-white font-sans text-ink-950 lg:grid-cols-2">
-      <section className="hidden flex-col bg-ink-950 p-12 text-white lg:flex xl:p-16" aria-label="TaxiSur, centro de operaciones">
+      <section className="hidden flex-col bg-ink-950 p-12 text-white lg:flex xl:p-16" aria-label="Centro de operaciones">
         <div className="flex items-center gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-taxi text-ink-950"><Icon name="car" className="h-6 w-6" /></span>
-          <p className="font-display text-2xl font-bold">Taxi<span className="text-taxi">Sur</span></p>
+          <p className="font-display text-2xl font-bold">Panel<span className="text-taxi">Admin</span></p>
         </div>
         <div className="my-auto py-16">
           <p className="mb-6 text-xs font-semibold uppercase tracking-widest text-slate-300">Centro de operaciones</p>
           <h2 className="max-w-lg font-display text-5xl font-bold leading-tight tracking-tight">Tu flota conectada.<br /><span className="text-taxi">Tu operación, clara.</span></h2>
           <p className="mt-6 max-w-sm text-base leading-8 text-slate-300">Supervisa los servicios y acompaña a tu equipo desde un solo lugar.</p>
-          <p className="mt-10 flex items-center gap-3 text-sm text-slate-200"><Icon name="shield" className="h-4 w-4 text-taxi" />Acceso para la administración de TaxiSur</p>
+          <p className="mt-10 flex items-center gap-3 text-sm text-slate-200"><Icon name="shield" className="h-4 w-4 text-taxi" />Acceso para la administración</p>
         </div>
-        <p className="text-xs text-slate-300">TaxiSur Admin · Panel administrativo</p>
+        <p className="text-xs text-slate-300">Panel administrativo</p>
       </section>
       <section className="flex min-w-0 items-center justify-center px-6 py-12 sm:px-12">
         <div className="w-full max-w-sm">
           <div className="mb-12 flex items-center gap-3 font-display text-2xl font-bold lg:hidden">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-taxi text-ink-950"><Icon name="car" className="h-6 w-6" /></span>
-            <span>Taxi<span className="rounded bg-taxi px-1 text-ink-950">Sur</span></span>
+            <span>Panel<span className="rounded bg-taxi px-1 text-ink-950">Admin</span></span>
           </div>
           <div className="mb-8">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-600">Bienvenido a TaxiSur</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-600">Acceso de administrador</p>
             <h1 className="font-display text-3xl font-bold tracking-tight">Ingresa a tu panel</h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">Usa tu correo y contraseña de administrador.</p>
           </div>
