@@ -1,4 +1,8 @@
 const ESTILOS: Record<string, string> = {
+  no_iniciada: 'bg-gris/15 text-gris',
+  activa: 'bg-verde/10 text-verde',
+  no_disponible: 'bg-gris/15 text-gris',
+  solicitud_pendiente: 'bg-ambar/10 text-ambar',
   pendiente: 'bg-ambar/10 text-ambar',
   aprobado: 'bg-verde/10 text-verde',
   rechazado: 'bg-red-50 text-red-700',
@@ -13,6 +17,10 @@ const ESTILOS: Record<string, string> = {
 }
 
 const ETIQUETAS: Record<string, string> = {
+  no_iniciada: 'No iniciada',
+  activa: 'Activa',
+  no_disponible: 'No disponible',
+  solicitud_pendiente: 'Solicitud pendiente',
   pendiente: 'Pendiente',
   aprobado: 'Aprobado',
   rechazado: 'Rechazado',

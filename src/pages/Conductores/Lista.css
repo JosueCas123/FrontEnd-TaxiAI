@@ -1,0 +1,49 @@
+.conductores-heading { margin-bottom: 25px; }
+.conductores-heading h1 { font-size: 28px; line-height: 1.3; font-weight: 800; letter-spacing: -.8px; }
+.conductores-heading p { margin-top: 7px; line-height: 1.6; }
+.conductores-panel { background: white; border: 1px solid #e5e9ef; border-radius: 14px; }
+.conductores-controles { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 22px; border-bottom: 1px solid #e5e9ef; }
+.conductores-pestanas { display: flex; flex-wrap: wrap; gap: 0 28px; }
+.conductores-pestana { border-radius: 0; border-bottom: 2px solid transparent; padding: 17px 0 15px; color: #6a7686; font-weight: 400; }
+.conductores-pestana[aria-pressed='true'] { border-bottom-color: #d6a42b; color: #21354f; font-weight: 650; }
+.conductores-pestana:hover { background: #fafbfc; }
+.conductores-actualizar { gap: 8px; border: 1px solid #e5e9ef; background: white; font-size: 13px; }
+.conductores-filtros { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 19px 22px; }
+.conductores-busqueda { width: 360px; max-width: 100%; min-width: 0; }
+.conductores-busqueda label { color: #6a7686; font-size: 12px; }
+.conductores-busqueda input { border-color: #e5e9ef; font-size: 14px; }
+.conductores-filtros > span { padding-bottom: 12px; }
+.conductores-resultados > [role='status']:not(.conductores-pie),
+.conductores-resultados > [role='alert'],
+.conductores-panel > [role] { margin: 16px 22px; }
+.conductores-tabla th { padding: 12px; border-block: 1px solid #e5e9ef; background: #fafbfc; color: #6a7686; font-size: 12px; font-weight: 550; }
+.conductores-tabla td { padding: 17px 12px; height: 68px; }
+.conductores-tabla th:first-child, .conductores-tabla td:first-child { padding-left: 22px; }
+.conductores-tabla th:last-child, .conductores-tabla td:last-child { padding-right: 22px; }
+.conductores-tabla tbody tr { border-color: #edf0f5; }
+.conductores-tabla tbody tr:last-child { border-bottom: 0; }
+.conductores-tabla tbody tr:hover { background: #fafbfd; }
+.conductor-avatar { display: grid; place-items: center; width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%; background: #edf3fb; color: #4772a4; font-size: 12px; font-weight: 650; }
+.conductores-tabla tr:nth-child(3n + 2) .conductor-avatar { background: #fcf4e6; color: #9b743b; }
+.conductores-tabla tr:nth-child(3n) .conductor-avatar { background: #f0eef7; color: #7e6eaa; }
+/* Keep shared badges unchanged outside this screen. */
+.conductores-tabla td > span, .conductor-tarjeta dd > span { border-radius: 6px; padding: 5px 9px; font-weight: 550; line-height: 1.35; }
+.conductor-accion { gap: 6px; padding: 6px 10px; border: 1px solid #e5e9ef; font-size: 13px; }
+.conductor-accion--aprobar, .conductor-accion--reactivar { border-color: var(--color-taxi); }
+.conductor-accion--rechazar { color: #b33f4a; border-color: #f0dce0; background: #fff8f9; }
+.conductor-accion--rechazar:hover { background: #fcedef; }
+.conductores-pie { border-top: 1px solid #e5e9ef; padding: 16px 22px; color: #6a7686; font-size: 12px; }
+.conductores-tarjetas { padding: 0 16px 16px; }
+@media (max-width: 1279px) and (min-width: 1024px) {
+  .conductores-tabla th, .conductores-tabla td { padding-left: 8px; padding-right: 8px; }
+  .conductor-avatar { display: none; }
+}
+@media (max-width: 639px) {
+  .conductores-heading h1 { font-size: 24px; }
+  .conductores-controles { flex-wrap: wrap; gap: 12px; padding: 0 16px 16px; }
+  .conductores-pestanas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 0 16px; }
+  .conductores-pestana { font-size: 13px; }
+  .conductores-filtros { flex-direction: column; align-items: stretch; padding: 16px; gap: 10px; }
+  .conductores-filtros > span { padding: 0; }
+  .conductores-pie { padding: 14px 16px; }
+}
