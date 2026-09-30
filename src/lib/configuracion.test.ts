@@ -16,6 +16,7 @@ import {
   puedeDispararReintento,
   retryConfiguracion,
 } from './configuracion'
+import { construirPayload, valoresDesdeConfiguracion } from './configuracionForm'
 
 const CONFIG_VALIDA: Configuracion = {
   id: 1,
@@ -603,5 +604,198 @@ describe('aislamiento entre sesiones', () => {
     expect(detalle).toEqual({ sessionId: idA })
     expect(detalle.sessionId).not.toBe(getSessionId())
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('escritura parcial: cuerpo exacto y cache compartida', () => {
+  const CONFIRMADA: Configuracion = {
+    ...CONFIG_VALIDA,
+    nombreEmpresa: 'Taxi Sur',
+    radioMaximoBusquedaKm: 8,
+    telefonoCentroAtencion: null,
+    actualizadoEn: '2026-09-29T13:00:00.000Z',
+  }
+
+  it('el PUT envia solo diferencias, con Bearer y sin id, fechas ni claves ajenas', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(new Response(JSON.stringify(CONFIRMADA))))
+    vi.stubGlobal('fetch', fetchMock)
+    setToken('token-admin')
+
+    const diferencias = construirPayload(CONFIG_VALIDA, {
+      nombreEmpresa: ` ${CONFIG_VALIDA.nombreEmpresa} `,
+      radioMaximoBusquedaKm: '8',
+      telefonoCentroAtencion: '   ',
+    })
+    const respuesta = await http.put<Configuracion>('/api/configuracion', diferencias)
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('/api/configuracion')
+    expect(init?.method).toBe('PUT')
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer token-admin')
+    expect(JSON.parse(String(init?.body))).toEqual({
+      radioMaximoBusquedaKm: 8,
+      telefonoCentroAtencion: null,
+    })
+    expect(respuesta).toEqual(CONFIRMADA)
+  })
+
+  it('un DTO confirmado ilumina la misma entrada que observa el shell', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(CONFIG_VALIDA)))))
+    setToken('token-admin')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const opciones = {
+      queryKey: CLAVE_CONFIGURACION,
+      queryFn: () => http.get<Configuracion>('/api/configuracion'),
+      retry: false,
+    }
+    const lateral = new QueryObserver(client, opciones)
+    const header = new QueryObserver(client, opciones)
+    lateral.subscribe(vi.fn())
+    header.subscribe(vi.fn())
+    await client.fetchQuery<Configuracion>(opciones)
+    expect(lateral.getCurrentResult().data?.nombreEmpresa).toBe(CONFIG_VALIDA.nombreEmpresa)
+
+    client.setQueryData<Configuracion>(CLAVE_CONFIGURACION, CONFIRMADA)
+
+    expect(header.getCurrentResult().data?.nombreEmpresa).toBe('Taxi Sur')
+    expect(
+      nombresEmpresa({ nombreServidor: header.getCurrentResult().data?.nombreEmpresa, ultimoNombreValido: null }),
+    ).toEqual({ lateral: 'Taxi Sur', header: 'Taxi Sur' })
+    lateral.destroy()
+    header.destroy()
+  })
+
+  it('una lectura previa en vuelo se descarta y no revierte el DTO confirmado', async () => {
+    const resolvers: ((r: Response) => void)[] = []
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { resolvers.push(resolve) }))
+    vi.stubGlobal('fetch', fetchMock)
+    setToken('token-admin')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const opciones = {
+      queryKey: CLAVE_CONFIGURACION,
+      queryFn: () => http.get<Configuracion>('/api/configuracion'),
+      retry: false,
+    }
+
+    // Lectura en vuelo (p. ej. un Reintentar del shell) todavia sin resolver.
+    const pendiente = client.fetchQuery<Configuracion>(opciones).catch((e: unknown) => e)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // Secuencia de la pagina tras un 200 del PUT: cancelar, publicar, reconciliar.
+    await client.cancelQueries({ queryKey: CLAVE_CONFIGURACION })
+    client.setQueryData<Configuracion>(CLAVE_CONFIGURACION, CONFIRMADA)
+    void client.invalidateQueries({ queryKey: CLAVE_CONFIGURACION })
+
+    // La lectura anterior se completa tarde con el valor viejo.
+    resolvers[0](new Response(JSON.stringify(CONFIG_VALIDA)))
+    expect(await pendiente).toBeInstanceOf(Error)
+    expect(client.getQueryData<Configuracion>(CLAVE_CONFIGURACION)).toEqual(CONFIRMADA)
+  })
+
+  it('un GET con datos en cache que llega tarde tras el PUT tampoco revierte el 200', async () => {
+    let llamadas = 0
+    const resolvers: ((r: Response) => void)[] = []
+    const fetchMock = vi.fn(() => {
+      llamadas += 1
+      if (llamadas === 1) return Promise.resolve(new Response(JSON.stringify(CONFIG_VALIDA)))
+      return new Promise<Response>((resolve) => { resolvers.push(resolve) })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    setToken('token-admin')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const opciones = {
+      queryKey: CLAVE_CONFIGURACION,
+      queryFn: () => http.get<Configuracion>('/api/configuracion'),
+      retry: false,
+    }
+    const observador = new QueryObserver(client, opciones)
+    observador.subscribe(vi.fn())
+    await client.fetchQuery<Configuracion>(opciones)
+    expect(observador.getCurrentResult().data).toEqual(CONFIG_VALIDA)
+
+    // Refetch en vuelo con la lectura vieja todavia pendiente.
+    void client.refetchQueries({ queryKey: CLAVE_CONFIGURACION })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    await client.cancelQueries({ queryKey: CLAVE_CONFIGURACION })
+    client.setQueryData<Configuracion>(CLAVE_CONFIGURACION, CONFIRMADA)
+
+    resolvers[0](new Response(JSON.stringify(CONFIG_VALIDA)))
+    await Promise.resolve()
+    expect(client.getQueryData<Configuracion>(CLAVE_CONFIGURACION)).toEqual(CONFIRMADA)
+    expect(observador.getCurrentResult().data).toEqual(CONFIRMADA)
+    observador.destroy()
+  })
+
+  it('si el GET posterior al guardado falla, la cache conserva el DTO confirmado', async () => {
+    let llamadas = 0
+    const fetchMock = vi.fn(() => {
+      llamadas += 1
+      if (llamadas === 1) return Promise.resolve(new Response(JSON.stringify(CONFIG_VALIDA)))
+      return Promise.resolve(new Response(JSON.stringify({ error: { message: 'Error 500' } }), { status: 500 }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    setToken('token-admin')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const opciones = {
+      queryKey: CLAVE_CONFIGURACION,
+      queryFn: () => http.get<Configuracion>('/api/configuracion'),
+      retry: retryConfiguracion,
+      retryDelay: () => 0,
+    }
+    const observador = new QueryObserver(client, opciones)
+    observador.subscribe(vi.fn())
+
+    client.setQueryData<Configuracion>(CLAVE_CONFIGURACION, CONFIRMADA)
+    await client.invalidateQueries({ queryKey: CLAVE_CONFIGURACION })
+
+    // La lectura de reconciliacion fallo: el DTO confirmado sigue vigente y el
+    // observador distingue el fallo de refresco del fallo de guardado.
+    expect(client.getQueryData<Configuracion>(CLAVE_CONFIGURACION)).toEqual(CONFIRMADA)
+    const resultado = observador.getCurrentResult()
+    expect(resultado.error).toBeInstanceOf(ApiError)
+    expect(resultado.data).toEqual(CONFIRMADA)
+    expect(informacionErrorConfiguracion(resultado.error).recuperable).toBe(true)
+    observador.destroy()
+  })
+
+  it('la pagina no provoke un GET adicional al montarse con la cache del shell', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify(CONFIG_VALIDA))))
+    vi.stubGlobal('fetch', fetchMock)
+    setToken('token-admin')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const shell = {
+      queryKey: CLAVE_CONFIGURACION,
+      queryFn: () => http.get<Configuracion>('/api/configuracion'),
+      retry: false,
+    }
+    const shellObservador = new QueryObserver(client, shell)
+    shellObservador.subscribe(vi.fn())
+    await client.fetchQuery<Configuracion>(shell)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // Opcion de la pagina: con datos en cache no vuelve a leer al montar.
+    const pagina = { ...shell, refetchOnMount: false }
+    const paginaObservador = new QueryObserver(client, pagina)
+    paginaObservador.subscribe(vi.fn())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // Sin datos en cache, la misma opcion si consulta: no inventa valores.
+    const cacheVacia = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const paginaVacia = new QueryObserver(cacheVacia, pagina)
+    paginaVacia.subscribe(vi.fn())
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    shellObservador.destroy()
+    paginaObservador.destroy()
+    paginaVacia.destroy()
+  })
+
+  it('los valores del formulario salen del DTO confirmado, no de valores de fabrica', () => {
+    expect(valoresDesdeConfiguracion({ ...CONFIG_VALIDA, telefonoCentroAtencion: null })).toEqual({
+      nombreEmpresa: CONFIG_VALIDA.nombreEmpresa,
+      radioMaximoBusquedaKm: '5',
+      telefonoCentroAtencion: '',
+    })
   })
 })
