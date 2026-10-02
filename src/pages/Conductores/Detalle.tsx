@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Dialog from '@radix-ui/react-dialog'
 import { ApiError, apiFetch, http } from '../../api/client'
 import { getSessionRevision } from '../../api/token'
@@ -11,11 +11,13 @@ import { Alert } from '../../components/ui/alert'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
-import { accionesPorEstado, ETIQUETAS_ACCION, mensajeErrorTransicion, mensajeExitoTransicion,
-  antiguedadParaMostrar, nombreParaMostrar, retryConductores, rutaTransicion, textoConfirmacion, type Accion } from '../../lib/conductores'
+import { accionesPorEstado, antiguedadParaMostrar, antiguedadUbicacion, ETIQUETAS_ACCION,
+  mensajeErrorTransicion, mensajeExitoTransicion, nombreParaMostrar, retryConductores, rutaTransicion,
+  textoConfirmacion, type Accion } from '../../lib/conductores'
 import { construirPayloadVehiculo, tieneEdicionesVehiculo, validarVehiculo, valoresDesdeVehiculo,
   type ValoresVehiculo } from '../../lib/vehiculoForm'
 import './Detalle.css'
+import { CLAVE_ESCRITURA_CONDUCTOR, filtroEscrituraConductor, type OrigenEscrituraConductor } from '../../lib/conductorQueries'
 
 const ETIQUETAS: Record<keyof ValoresVehiculo, string> = {
   placa: 'Placa', marca: 'Marca', modelo: 'Modelo', color: 'Color', capacidadPasajeros: 'Capacidad de pasajeros',
@@ -37,26 +39,54 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
   const client = useQueryClient()
   const { cerrarSesion } = useAuth()
   const montado = useRef(true)
+  const recurso = useRef(id)
   const refrescando = useRef(false)
+  const reintentandoUbicacion = useRef(false)
   const enviado = useRef(false)
+  const escrituraPropia = useRef(true)
+  const pendientesPrevias = useRef(0)
+  const bloqueoConsulta = useRef(0)
   const botonEditar = useRef<HTMLButtonElement>(null)
   const enlaceVolver = useRef<HTMLAnchorElement>(null)
   const primerCampo = useRef<HTMLInputElement>(null)
+  const botonCancelar = useRef<HTMLButtonElement>(null)
+  const botonDescartar = useRef<HTMLButtonElement>(null)
+  const botonCerrar = useRef<HTMLButtonElement>(null)
   const [edicion, setEdicion] = useState<Edicion | null>(null)
-  const [enviando, setEnviando] = useState(false)
+  const [enviandoLocal, setEnviando] = useState(false)
+  const pendientes = useMutationState({ filters: filtroEscrituraConductor(sesion, id) })
+  const enviando = enviandoLocal || pendientes.length > 0
+  const escrituraPendiente = () => client.isMutating(filtroEscrituraConductor(sesion, id)) > 0
+  const escritura = useMutation({
+    mutationKey: CLAVE_ESCRITURA_CONDUCTOR,
+    retry: false,
+    mutationFn: ({ operacion }: OrigenEscrituraConductor & { operacion: () => Promise<void> }) => operacion(),
+  })
+  const escribir = (operacion: () => Promise<void>) => {
+    if (escrituraPendiente() || !montado.current || getSessionRevision() !== sesion) return
+    escritura.mutate({ fila: { id }, sesion, operacion: async () => {
+      escrituraPropia.current = false
+      try { await operacion() } finally { escrituraPropia.current = true }
+    } })
+  }
   const [validar, setValidar] = useState(false)
   const [falla, setFalla] = useState<string | null>(null)
   const [permisoPatchDenegado, setPermisoPatchDenegado] = useState(false)
+  const [requiereConsulta, setRequiereConsulta] = useState(false)
   const [exito, setExito] = useState(false)
   const [restriccion, setRestriccion] = useState<ApiError | null>(null)
   const [avisoCuenta, setAvisoCuenta] = useState<{ error: boolean; texto: string } | null>(null)
+  // Un 404 exige un GET 200 posterior: la marca impide que una lectura ya en vuelo lo libere.
+  const exigirConsulta = () => { bloqueoConsulta.current += 1; setRequiereConsulta(true) }
   const { data, error, isPending, isFetching, dataUpdatedAt, refetch } = useQuery({
     queryKey: ['conductor-detalle', id],
     queryFn: async ({ signal }) => {
       if (getSessionRevision() !== sesion) throw new DOMException('Sesion anterior', 'AbortError')
+      const marcaConsulta = bloqueoConsulta.current
       try {
         const detalle = await apiFetch<ConductorDetalle>(`/api/conductores/${encodeURIComponent(id)}`, { signal })
         if (getSessionRevision() !== sesion) throw new DOMException('Sesion anterior', 'AbortError')
+        if (!signal.aborted && montado.current && marcaConsulta === bloqueoConsulta.current) setRequiereConsulta(false)
         return detalle
       } catch (fallo) {
         if (getSessionRevision() !== sesion) throw new DOMException('Sesion anterior', 'AbortError')
@@ -84,16 +114,17 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
         throw fallo
       }
     },
-    enabled: !!data && !accesoBloqueado,
+    enabled: !!data && !accesoBloqueado && !enviando,
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
-  const reporte = ubicacion.data?.ultimaUbicacionRegistradaEn
-  const antiguedad = reporte ? Math.max(0, Date.now() - Date.parse(reporte)) : null
-  const desactualizada = antiguedad !== null && antiguedad > 300_000
+  const reporte = antiguedadUbicacion(ubicacion.data?.ultimaUbicacionRegistradaEn, Date.now())
+  const desactualizada = reporte.estado === 'registrada' && reporte.milisegundos > 300_000
+  const textoAntiguedad = reporte.estado === 'sin-reportes' ? 'Sin reportes' :
+    reporte.estado === 'invalida' ? 'Fecha no disponible' : antiguedadParaMostrar(reporte.milisegundos)
   const objetivoPerdido = !!edicion && (edicion.objetivoPerdido || data?.vehiculo?.id !== edicion.base.id)
-  const guardadoBloqueado = !!accesoBloqueado || permisoPatchDenegado || objetivoPerdido
+  const guardadoBloqueado = !!accesoBloqueado || permisoPatchDenegado || objetivoPerdido || requiereConsulta
   const sucio = !!edicion && tieneEdicionesVehiculo(edicion.base, edicion.valores)
   const errores = edicion && validar ? validarVehiculo(edicion.valores) : {}
 
@@ -117,15 +148,47 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
     return () => { montado.current = false }
   }, [])
 
-  const refrescar = async () => {
-    if (getSessionRevision() !== sesion || !montado.current || refrescando.current || isFetching || enviado.current) return
+  // Tras una espera solo sigue esta vista: misma sesion, mismo recurso y sin escritura en curso.
+  const sigueVigente = () => getSessionRevision() === sesion && montado.current && recurso.current === id
+  const accesoRestringido = (fallo: unknown) => fallo instanceof ApiError && [403, 404].includes(fallo.status)
+
+  const conciliarEscrituraAjena = async () => {
+    if (!sigueVigente()) return
+    await client.cancelQueries({ queryKey: ['conductor-detalle', id], exact: true })
+    if (!sigueVigente()) return
+    await client.cancelQueries({ queryKey: ['conductor-ubicacion', id], exact: true })
+    if (!sigueVigente()) return
+    await client.invalidateQueries({ queryKey: ['conductor-detalle', id], exact: true }, { cancelRefetch: false })
+    if (!sigueVigente()) return
+    await client.invalidateQueries({ queryKey: ['conductor-ubicacion', id], exact: true }, { cancelRefetch: false })
+  }
+
+  // Una transicion de cuenta iniciada en el listado se concilia aqui cuando este perfil esta abierto.
+  useEffect(() => {
+    const actuales = pendientes.length
+    const previas = pendientesPrevias.current
+    pendientesPrevias.current = actuales
+    if (!previas || actuales || escrituraPropia.current || !sigueVigente()) return
+    void conciliarEscrituraAjena()
+  }, [pendientes.length, id, sesion])
+
+  const refrescar = async (soloUbicacion = false) => {
+    if (!sigueVigente() || refrescando.current || reintentandoUbicacion.current || isFetching ||
+      ubicacion.isFetching || enviado.current || escrituraPendiente()) return
     refrescando.current = true
+    if (soloUbicacion) reintentandoUbicacion.current = true
     try {
-      await refetch({ cancelRefetch: false })
-      if (getSessionRevision() !== sesion || !montado.current) return
-      if (data && !accesoBloqueado) await ubicacion.refetch({ cancelRefetch: false })
+      const resultado = soloUbicacion ? null : await refetch({ cancelRefetch: false })
+      if (!sigueVigente() || enviado.current || escrituraPendiente()) return
+      const exito = soloUbicacion ? !!data && !accesoBloqueado :
+        resultado?.isSuccess === true && !!resultado.data && !accesoRestringido(resultado.error)
+      if (!exito) return
+      await ubicacion.refetch({ cancelRefetch: false })
     }
-    finally { refrescando.current = false }
+    finally {
+      reintentandoUbicacion.current = false
+      refrescando.current = false
+    }
   }
 
   const cerrarModal = () => {
@@ -137,7 +200,7 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
   }
 
   const gestionar = async (accion: Accion) => {
-    if (!data || edicion || enviado.current || accesoBloqueado || permisoPatchDenegado ||
+    if (!data || edicion || enviado.current || accesoBloqueado || permisoPatchDenegado || requiereConsulta ||
       !montado.current || getSessionRevision() !== sesion || !accionesPorEstado(data.estado).includes(accion)) return
     if (!window.confirm(textoConfirmacion(accion, data.nombreCompleto))) return
     enviado.current = true
@@ -154,6 +217,8 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
       if (!vigente()) return
       aviso = { error: true, texto: mensajeErrorTransicion(fallo) }
       if (montado.current && fallo instanceof ApiError && fallo.status === 403) setPermisoPatchDenegado(true)
+      // El mensaje recibido se conserva; la entidad no se infiere y no se cierra la sesion.
+      if (montado.current && fallo instanceof ApiError && fallo.status === 404) exigirConsulta()
     }
     if (!vigente()) return
     await client.cancelQueries({ queryKey: clave, exact: true })
@@ -223,9 +288,9 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
       setEnviando(false)
     }
     // Los fallos de lectura son independientes del PATCH ya confirmado.
-    void client.invalidateQueries({ queryKey: clave, exact: true }, { cancelRefetch: false })
+    await client.invalidateQueries({ queryKey: clave, exact: true }, { cancelRefetch: false })
     if (!vigente()) return
-    void client.invalidateQueries({ queryKey: ['conductores'] }, { cancelRefetch: false })
+    await client.invalidateQueries({ queryKey: ['conductores'] }, { cancelRefetch: false })
   }
 
   let fecha: { iso: string; texto: string } | null = null
@@ -247,6 +312,7 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
     {isFetching && <p role="status">{data ? 'Actualizando...' : 'Cargando conductor...'}</p>}
     {exito && <p role="status" className="detalle-exito">Vehiculo guardado.</p>}
     {permisoPatchDenegado && <Alert>Permiso de edicion denegado. Vuelve a iniciar sesion con permisos de administrador para recuperar el guardado; actualizar la ficha no acredita ese permiso.</Alert>}
+    {requiereConsulta && <Alert>Es necesario actualizar la ficha correctamente antes de volver a editar o gestionar la cuenta.</Alert>}
     {accesoBloqueado ? <section className="detalle-panel">
       <h1>{accesoBloqueado.status === 404 ? 'Conductor no encontrado' : 'Permiso denegado'}</h1>
       <Alert>{accesoBloqueado.message}</Alert>
@@ -277,8 +343,8 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
             </section>
             <section className="detalle-panel">
               <div className="detalle-panel-heading"><h2>Vehiculo asignado</h2>
-                {data.vehiculo && <Button ref={botonEditar} variant="ghost" disabled={enviando} onClick={() => {
-                  if (!data.vehiculo || accesoBloqueado || enviado.current) return
+                {data.vehiculo && <Button ref={botonEditar} variant="ghost" disabled={enviando || requiereConsulta} onClick={() => {
+                  if (!data.vehiculo || accesoBloqueado || enviado.current || escrituraPendiente() || requiereConsulta) return
                   setEdicion({ base: { ...data.vehiculo }, valores: valoresDesdeVehiculo(data.vehiculo), objetivoPerdido: false })
                   setFalla(null); setValidar(false); setExito(false)
                  }}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m16 3 5 5-12 12H4v-5L16 3Zm-3 3 5 5" /></svg>Editar vehiculo</Button>}
@@ -305,14 +371,11 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
               <div><dt>Disponibilidad</dt><dd><EstadoBadge estado={data.estadoDisponibilidad} /></dd></div>
               <div><dt>Ultima ubicacion</dt><dd className={desactualizada ? 'detalle-antigua' : ''}>
                 {ubicacion.isFetching ? <span role="status">Consultando...</span> : ubicacion.error ? 'No disponible' :
-                  ubicacion.isPending ? 'Pendiente de consulta' : antiguedad === null ? 'Sin reportes' :
-                     antiguedadParaMostrar(antiguedad)}
+                  ubicacion.isPending ? 'Pendiente de consulta' : textoAntiguedad}
               </dd></div>
             </dl>
             {ubicacion.error ? <div className="detalle-ubicacion-error"><Alert>No se pudo consultar la ultima ubicacion.</Alert>
-              <Button variant="ghost" disabled={ubicacion.isFetching || enviando} onClick={() => {
-                if (getSessionRevision() === sesion && !enviado.current) void ubicacion.refetch()
-              }}>Reintentar ubicacion</Button></div> : !ubicacion.isFetching && desactualizada &&
+              <Button variant="ghost" disabled={ubicacion.isFetching || isFetching || enviando} onClick={() => void refrescar(true)}>Reintentar ubicacion</Button></div> : !ubicacion.isFetching && desactualizada &&
               <p className="detalle-aviso-antiguedad">Mas de 5 minutos sin actualizar. No elegible para nuevas solicitudes.</p>}
           </section>
           <section className="detalle-panel">
@@ -322,8 +385,8 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
             {accionesPorEstado(data.estado).length > 0 && <div className="detalle-acciones" aria-busy={enviando}>
               {accionesPorEstado(data.estado).map((accion) => <Button key={accion}
                 variant="ghost" className={`detalle-accion detalle-accion--${accion}`}
-                disabled={enviando || !!edicion || permisoPatchDenegado}
-                onClick={() => void gestionar(accion)}>{(accion === 'aprobar' || accion === 'reactivar') &&
+                disabled={enviando || !!edicion || permisoPatchDenegado || requiereConsulta}
+                onClick={() => escribir(() => gestionar(accion))}>{(accion === 'aprobar' || accion === 'reactivar') &&
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m5 12 4 4L19 6" /></svg>}{ETIQUETAS_ACCION[accion]}</Button>)}
             </div>}
             {enviando && !edicion && <p role="status" className="detalle-nota">Procesando transicion...</p>}
@@ -336,16 +399,20 @@ function Ficha({ id, sesion }: { id: string; sesion: number }) {
       <Dialog.Portal>
         <Dialog.Overlay className="vehiculo-overlay" />
         <Dialog.Content className="vehiculo-modal" onOpenAutoFocus={(evento) => {
-          evento.preventDefault(); primerCampo.current?.focus()
+          if (primerCampo.current && !primerCampo.current.matches(':disabled')) {
+            evento.preventDefault(); primerCampo.current.focus()
+          }
         }} onCloseAutoFocus={(evento) => {
           evento.preventDefault()
-          if (montado.current && getSessionRevision() === sesion) (botonEditar.current ?? enlaceVolver.current)?.focus()
+          if (montado.current && getSessionRevision() === sesion) {
+            (botonEditar.current && !botonEditar.current.disabled ? botonEditar.current : enlaceVolver.current)?.focus()
+          }
         }}>
           <div className="vehiculo-modal-heading">
             <div><Dialog.Title>Editar vehiculo</Dialog.Title><Dialog.Description>{nombre}. Solo se envian los campos modificados.</Dialog.Description></div>
             <Button type="button" variant="ghost" aria-label="Cerrar edicion" disabled={enviando} onClick={cerrarModal}>X</Button>
           </div>
-          {edicion && <form noValidate aria-busy={enviando} onSubmit={(evento) => { evento.preventDefault(); void guardar() }}>
+          {edicion && <form noValidate aria-busy={enviando} onSubmit={(evento) => { evento.preventDefault(); escribir(guardar) }}>
             <div className="vehiculo-modal-body">
               {sucio && <p role="status" className="vehiculo-borrador">Tienes cambios sin guardar</p>}
               <p className="vehiculo-ayuda">Salir a otra pantalla puede perder el borrador sin confirmacion.</p>

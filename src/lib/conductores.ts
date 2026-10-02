@@ -54,6 +54,21 @@ export function accionesPorEstado(estado: EstadoConductor): readonly Accion[] {
 }
 
 export const nombreParaMostrar = (nombre: string | null | undefined) => nombre?.trim() || '(sin nombre)'
+
+export type AntiguedadUbicacion =
+  | { estado: 'sin-reportes' }
+  | { estado: 'invalida' }
+  | { estado: 'registrada'; milisegundos: number }
+
+// Solo la ausencia real del dato significa 'Sin reportes'. Una fecha que no se puede
+// interpretar, o un valor que no es texto, se declara no disponible y nunca simula ausencia.
+export function antiguedadUbicacion(reporte: string | null | undefined, ahora: number): AntiguedadUbicacion {
+  if (reporte === null || reporte === undefined) return { estado: 'sin-reportes' }
+  const marca = typeof reporte === 'string' ? Date.parse(reporte) : Number.NaN
+  if (!Number.isFinite(marca)) return { estado: 'invalida' }
+  return { estado: 'registrada', milisegundos: Math.max(0, ahora - marca) }
+}
+
 export function antiguedadParaMostrar(milisegundos: number): string {
   if (!Number.isFinite(milisegundos)) return 'Fecha no disponible'
   const minutos = Math.floor(Math.max(0, milisegundos) / 60_000)
