@@ -12,6 +12,7 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import './Lista.css'
+import { CLAVE_ESCRITURA_CONDUCTOR, filtroEscrituraConductor, type OrigenEscrituraConductor } from '../../lib/conductorQueries'
 import {
   accionesPorEstado, claveConductores, etiquetaVehiculo, ETIQUETAS_ACCION, filtrarConductores,
   hayTerminoBusqueda, informacionErrorConductores, intervaloRefresco, mensajeBusquedaVacia,
@@ -26,7 +27,6 @@ interface Transicion {
   origen: EstadoConductor
   sesion: number
 }
-const CLAVE_TRANSICION = ['transicion-conductor']
 
 export default function Lista() {
   const { estaAutenticado } = useAuth()
@@ -44,9 +44,9 @@ export default function Lista() {
   const refrescando = useRef(false)
   const sesion = getSessionRevision()
   const pendientes = useMutationState({
-    filters: { mutationKey: CLAVE_TRANSICION, status: 'pending' },
-    select: (mutation) => mutation.state.variables as Transicion,
-  }).filter((transicion) => transicion.sesion === sesion)
+    filters: filtroEscrituraConductor(sesion),
+    select: (mutation) => mutation.state.variables as OrigenEscrituraConductor,
+  })
   const hayTransicion = pendientes.length > 0
   const lecturas = useIsFetching({ queryKey: ['conductores'] })
 
@@ -88,13 +88,16 @@ export default function Lista() {
   })
 
   const transicion = useMutation({
-    mutationKey: CLAVE_TRANSICION,
+    mutationKey: CLAVE_ESCRITURA_CONDUCTOR,
     retry: false,
     mutationFn: async ({ fila, accion, origen, sesion: inicio }: Transicion) => {
       const vigente = () => getSessionRevision() === inicio
+      const clave = ['conductor-detalle', fila.id]
+      const claveUbicacion = ['conductor-ubicacion', fila.id]
+      let respuesta: ConductorDetalle | undefined
       let resultado: { error: boolean; texto: string }
       try {
-        await http.patch<ConductorDetalle>(rutaTransicion(fila.id, accion))
+        respuesta = await http.patch<ConductorDetalle>(rutaTransicion(fila.id, accion))
         if (!vigente()) return
         // Aborta transportes anteriores en todas las pestanas, no solo la visible.
         await client.cancelQueries({ queryKey: ['conductores'] })
@@ -107,14 +110,23 @@ export default function Lista() {
         await client.cancelQueries({ queryKey: ['conductores'] })
         if (!vigente()) return
       }
+      await client.cancelQueries({ queryKey: clave, exact: true })
+      if (!vigente()) return
+      await client.cancelQueries({ queryKey: claveUbicacion, exact: true })
+      if (!vigente()) return
+      if (respuesta) client.setQueryData(clave, respuesta)
       if (montado.current) setAviso(resultado)
       // Sigue pendiente durante la conciliacion: el polling no compite con ella.
-      await client.invalidateQueries({ queryKey: ['conductores'] }, { cancelRefetch: false })
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['conductores'] }, { cancelRefetch: false }),
+        client.invalidateQueries({ queryKey: clave, exact: true }, { cancelRefetch: false }),
+        client.invalidateQueries({ queryKey: claveUbicacion, exact: true }, { cancelRefetch: false }),
+      ])
     },
   })
 
   const ejecutar = async (fila: ConductorListado, accion: Accion) => {
-    if (bloqueadas.current.has(fila.id) || pendientes.some((p) => p.fila.id === fila.id)) return
+    if (getSessionRevision() !== sesion || !montado.current || bloqueadas.current.has(fila.id) || client.isMutating(filtroEscrituraConductor(sesion, fila.id))) return
     if (!window.confirm(textoConfirmacion(accion, fila.nombreCompleto))) return
     bloqueadas.current.add(fila.id)
     setAviso(null)
