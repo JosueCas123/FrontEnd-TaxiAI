@@ -1,4 +1,9 @@
 .conductores-heading { margin-bottom: 25px; }
+.conductor-nombre-link { display: inline-flex; align-items: center; min-height: 44px; color: #4772a4; text-decoration: underline; text-underline-offset: 3px; }
+.conductor-enlaces-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.conductor-detalle-link { display: inline-grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border: 1px solid #e5e9ef; border-radius: 8px; color: #4772a4; }
+.conductor-detalle-link svg { width: 18px; height: 18px; }
+.conductor-detalle-link:focus-visible, .conductor-nombre-link:focus-visible { outline: 2px solid #4772a4; outline-offset: 3px; }
 .conductores-heading h1 { font-size: 28px; line-height: 1.3; font-weight: 800; letter-spacing: -.8px; }
 .conductores-heading p { margin-top: 7px; line-height: 1.6; }
 .conductores-panel { background: white; border: 1px solid #e5e9ef; border-radius: 14px; }

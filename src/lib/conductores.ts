@@ -54,6 +54,17 @@ export function accionesPorEstado(estado: EstadoConductor): readonly Accion[] {
 }
 
 export const nombreParaMostrar = (nombre: string | null | undefined) => nombre?.trim() || '(sin nombre)'
+export function antiguedadParaMostrar(milisegundos: number): string {
+  if (!Number.isFinite(milisegundos)) return 'Fecha no disponible'
+  const minutos = Math.floor(Math.max(0, milisegundos) / 60_000)
+  if (minutos === 0) return 'Hace menos de 1 min'
+  if (minutos < 60) return `Hace ${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return `Hace ${horas} h${minutos % 60 ? ` y ${minutos % 60} min` : ''}`
+  const dias = Math.floor(horas / 24)
+  return `Hace ${dias} ${dias === 1 ? 'd\u00eda' : 'd\u00edas'}${horas % 24 ? ` y ${horas % 24} h` : ''}`
+}
+
 export function textoConfirmacion(accion: Accion, nombre: string | null | undefined): string {
   const textos: Record<Accion, string> = {
     aprobar: 'Aprobar la cuenta de', rechazar: 'Rechazar la cuenta de',

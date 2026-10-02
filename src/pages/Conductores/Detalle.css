@@ -1,0 +1,65 @@
+.conductor-detalle { min-width: 0; overflow-wrap: anywhere; color: #172538; }
+.detalle-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.detalle-toolbar a { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; color: #7e8b9e; font-size: 13px; }
+.detalle-toolbar svg { width: 15px; height: 15px; }
+.conductor-detalle h1 { font-size: 25px; font-weight: 800; letter-spacing: -.8px; line-height: 1.3; }
+.detalle-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin: 0 0 28px; }
+.detalle-heading > div { flex: 1; min-width: 0; }
+.detalle-heading p { margin-top: 6px; font-size: 13px; color: #6a7686; }
+.detalle-avatar { display: grid; place-items: center; width: 62px; height: 62px; flex-shrink: 0; border-radius: 50%; background: #edf3fb; color: #4772a4; font-weight: 650; font-size: 21px; }
+.detalle-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; }
+.detalle-stack { display: grid; min-width: 0; gap: 22px; }
+.detalle-panel { min-width: 0; border: 1px solid #e5e9ef; border-radius: 14px; background: white; overflow: hidden; }
+.detalle-panel-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 21px 22px; }
+.detalle-panel h2 { font-size: 18px; font-weight: 750; letter-spacing: -.3px; }
+.detalle-panel-heading p { margin-top: 5px; font-size: 13px; color: #6a7686; line-height: 1.6; }
+.detalle-panel-heading > span { font-size: 12px; color: #8693a4; }
+.detalle-panel-heading > button { border: 1px solid #e5e9ef; border-radius: 8px; font-size: 12px; padding: 7px 10px; }
+.detalle-panel-heading > button svg, .detalle-accion svg { width: 16px; height: 16px; flex-shrink: 0; }
+.detalle-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; padding: 25px 24px; font-size: 14px; }
+.detalle-datos dt { color: #8b96a5; font-size: 12px; margin-bottom: 8px; }
+.detalle-datos dd { font-weight: 550; }
+.detalle-nota { padding: 15px 24px; border-top: 1px solid #e5e9ef; background: #fcfdff; color: #8693a4; font-size: 12px; line-height: 1.5; }
+.detalle-vehiculo { display: flex; align-items: center; gap: 16px; padding: 22px 24px; border-bottom: 1px solid #e5e9ef; background: linear-gradient(100deg,#fafbfc,#fff); }
+.detalle-vehiculo svg { width: 68px; height: 56px; padding: 11px 16px; flex-shrink: 0; background: #e9eef5; color: #72869d; border-radius: 11px; }
+.detalle-vehiculo h3 { font-size: 17px; font-weight: 650; }
+.detalle-placa { display: inline-block; margin-top: 6px; border: 1px solid #d8dfe7; border-radius: 4px; background: white; padding: 4px 7px; letter-spacing: 2px; font-size: 12px; font-weight: 550; }
+.detalle-operativo { padding: 0 23px; font-size: 14px; color: #697990; }
+.detalle-operativo > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 19px 0; border-bottom: 1px solid #edf0f5; }
+.detalle-operativo > div:last-child { border: 0; }
+.detalle-operativo > div:last-child dd { font-size: 13px; }
+.detalle-antigua { color: #a56e0b; }
+.detalle-aviso-antiguedad { margin: 6px 20px 20px; padding: 14px; border: 1px solid #f0dfa9; border-radius: 9px; background: #fff8e8; color: #926c22; font-size: 13px; line-height: 1.6; }
+.detalle-ubicacion-error { padding: 0 20px 20px; }
+.detalle-acciones { padding: 22px; border-top: 1px solid #e5e9ef; display: flex; flex-wrap: wrap; gap: 10px; }
+.detalle-accion { border: 1px solid #e5e9ef; border-radius: 8px; }
+.detalle-accion--aprobar, .detalle-accion--reactivar { background: #f6c343; color: #111e2f; border-color: #f6c343; }
+.detalle-accion--rechazar, .detalle-accion--suspender { color: #bb4350; border-color: #ebcbd0; }
+.conductor-detalle > [role] { margin: 16px 0; }
+.detalle-exito { padding: 16px; border: 1px solid #bbf7d0; border-radius: 8px; background: #ecfdf5; color: #065f46; }
+.vehiculo-overlay { position: fixed; inset: 0; z-index: 60; background: #0b182c80; }
+.vehiculo-modal { position: fixed; z-index: 61; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(540px, calc(100% - 24px)); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid #e5e9ef; border-radius: 14px; background: white; color: #21354f; box-shadow: 0 20px 80px #0b182c33; overflow-wrap: anywhere; }
+.vehiculo-modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 24px; border-bottom: 1px solid #e5e9ef; }
+.vehiculo-modal-heading h2 { font-size: 19px; font-weight: 700; }
+.vehiculo-modal-heading p { margin-top: 6px; font-size: 13px; color: #6a7686; }
+.vehiculo-modal-body { display: grid; gap: 16px; padding: 24px; }
+.vehiculo-campos { display: grid; min-width: 0; gap: 16px; border: 0; padding: 0; margin: 0; }
+.vehiculo-campos input { margin-top: 6px; }
+.vehiculo-ayuda { font-size: 12px; color: #6a7686; margin-top: 5px; }
+.vehiculo-borrador { border: 1px solid #fde68a; border-radius: 8px; background: #fffbeb; color: #92400e; padding: 12px; font-size: 13px; }
+.vehiculo-modal-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #e5e9ef; background: #fafbfc; }
+.vehiculo-salir { margin: 0 16px 8px; color: #6a7686; }
+.vehiculo-modal button, .conductor-detalle button { min-height: 44px; white-space: normal; }
+@media (max-width: 479px) { .vehiculo-modal-heading, .vehiculo-modal-body, .vehiculo-modal-footer { padding: 16px; } }
+@media (width < 1024px) { .detalle-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 479px) {
+  .conductor-detalle h1 { font-size: 21px; }
+  .detalle-avatar { width: 47px; height: 47px; font-size: 16px; }
+  .detalle-heading { gap: 12px; }
+  .detalle-panel h2 { font-size: 16px; }
+  .detalle-heading > div { flex-basis: calc(100% - 80px); }
+  .detalle-datos { gap: 24px 15px; font-size: 13px; }
+  .detalle-datos dt { font-size: 11px; }
+  .detalle-panel-heading, .detalle-datos, .detalle-vehiculo { padding: 16px; }
+  .detalle-vehiculo { gap: 12px; }
+}

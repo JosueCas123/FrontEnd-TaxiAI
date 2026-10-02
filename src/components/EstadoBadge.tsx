@@ -1,10 +1,10 @@
 const ESTILOS: Record<string, string> = {
   no_iniciada: 'bg-gris/15 text-gris',
-  activa: 'bg-verde/10 text-verde',
+  activa: 'bg-[#eaf7f1] text-[#198363]',
   no_disponible: 'bg-gris/15 text-gris',
   solicitud_pendiente: 'bg-ambar/10 text-ambar',
-  pendiente: 'bg-ambar/10 text-ambar',
-  aprobado: 'bg-verde/10 text-verde',
+  pendiente: 'bg-[#fff5db] text-[#a17614]',
+  aprobado: 'bg-[#eaf7f1] text-[#198363]',
   rechazado: 'bg-red-50 text-red-700',
   suspendido: 'bg-gris/15 text-gris',
   disponible: 'bg-verde/10 text-verde',
@@ -18,7 +18,7 @@ const ESTILOS: Record<string, string> = {
 
 const ETIQUETAS: Record<string, string> = {
   no_iniciada: 'No iniciada',
-  activa: 'Activa',
+  activa: 'En jornada',
   no_disponible: 'No disponible',
   solicitud_pendiente: 'Solicitud pendiente',
   pendiente: 'Pendiente',
@@ -37,8 +37,9 @@ const ETIQUETAS: Record<string, string> = {
 export default function EstadoBadge({ estado }: { estado: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${ESTILOS[estado] ?? 'bg-gris/15 text-gris'}`}
+      className={`inline-flex items-center gap-1.5 rounded-[6px] px-[9px] py-[5px] text-xs leading-[1.35] font-[550] ${ESTILOS[estado] ?? 'bg-gris/15 text-gris'}`}
     >
+      <i aria-hidden="true" className="h-[7px] w-[7px] shrink-0 rounded-full bg-current" />
       {ETIQUETAS[estado] ?? estado}
     </span>
   )
