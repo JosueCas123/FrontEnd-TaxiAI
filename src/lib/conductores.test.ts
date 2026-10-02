@@ -3,6 +3,26 @@ import { ApiError } from '../api/client'
 import type { ConductorListado, EstadoConductor } from '../api/types'
 import * as c from './conductores'
 
+describe('antiguedad de la ultima ubicacion', () => {
+  it.each([
+    [-1, 'Hace menos de 1 min'],
+    [0, 'Hace menos de 1 min'],
+    [59_999, 'Hace menos de 1 min'],
+    [60_000, 'Hace 1 min'],
+    [59 * 60_000, 'Hace 59 min'],
+    [60 * 60_000, 'Hace 1 h'],
+    [61 * 60_000, 'Hace 1 h y 1 min'],
+    [1439 * 60_000, 'Hace 23 h y 59 min'],
+    [1440 * 60_000, 'Hace 1 d\u00eda'],
+    [1956 * 60_000, 'Hace 1 d\u00eda y 8 h'],
+    [2880 * 60_000, 'Hace 2 d\u00edas'],
+    [Number.NaN, 'Fecha no disponible'],
+    [Number.POSITIVE_INFINITY, 'Fecha no disponible'],
+  ])('formatea %s ms como %s', (duracion, esperado) => {
+    expect(c.antiguedadParaMostrar(duracion)).toBe(esperado)
+  })
+})
+
 const fila: ConductorListado = {
   id: 'uno', nombreCompleto: 'Nombre Ficticio', telefono: '+591 000-123',
   cedulaIdentidad: 'TEST', estado: 'pendiente', estadoJornada: 'no_iniciada',

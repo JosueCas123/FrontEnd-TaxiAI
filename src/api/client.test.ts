@@ -132,3 +132,18 @@ it('M11 network rejection remains a rejection', async () => {
   await expect(apiFetch('/test')).rejects.toBe(error)
   expect(dispatchEvent).not.toHaveBeenCalled()
 })
+
+it('SPEC06 U04 forwards signal and aborts a pending transport without a session change', async () => {
+  setToken('fictitious')
+  const session = getSessionId()
+  const controller = new AbortController()
+  fetchMock.mockImplementation((_url, options) => new Promise((_resolve, reject) => {
+    options?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+  }))
+  const pending = apiFetch('/api/conductores/fictitious', { signal: controller.signal })
+  expect(fetchMock.mock.calls[0][1]?.signal).toBe(controller.signal)
+  controller.abort()
+  await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+  expect(getSessionId()).toBe(session)
+  expect(dispatchEvent).not.toHaveBeenCalled()
+})

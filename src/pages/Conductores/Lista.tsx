@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useIsFetching, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, http } from '../../api/client'
 import { getSessionRevision } from '../../api/token'
@@ -205,7 +206,7 @@ export default function Lista() {
               onClick={() => setTexto('')}>Limpiar busqueda</Button>}
           </div> : movil ? <div className="conductores-tarjetas space-y-4">
             {filas.map((fila) => <article key={fila.id} className="conductor-tarjeta min-w-0 rounded-xl border border-slate-200 bg-white p-4 [overflow-wrap:anywhere]">
-              <h2 className="font-semibold text-ink-950">{nombreParaMostrar(fila.nombreCompleto)}</h2>
+              <h2 className="font-semibold text-ink-950"><Link className="conductor-nombre-link" to={`/conductores/${encodeURIComponent(fila.id)}`}>{nombreParaMostrar(fila.nombreCompleto)}</Link></h2>
               <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 text-sm">
                 <dt className="text-gris">Telefono</dt><dd>{fila.telefono}</dd>
                 <dt className="text-gris">Estado</dt><dd><EstadoBadge estado={fila.estado} /></dd>
@@ -213,7 +214,7 @@ export default function Lista() {
                 <dt className="text-gris">Disponibilidad</dt><dd><EstadoBadge estado={fila.estadoDisponibilidad} /></dd>
                 <dt className="text-gris">Vehiculo</dt><dd>{etiquetaVehiculo(fila.vehiculo)}</dd>
               </dl>
-              <div className="mt-4 border-t border-slate-200 pt-4">{acciones(fila)}</div>
+              <div className="conductor-enlaces-acciones mt-4 border-t border-slate-200 pt-4">{acciones(fila)}<Link className="conductor-detalle-link" to={`/conductores/${encodeURIComponent(fila.id)}`} aria-label={`Ver detalle de ${nombreParaMostrar(fila.nombreCompleto)}`}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m9 5 7 7-7 7" /></svg></Link></div>
             </article>)}
           </div> : <table className="conductores-tabla w-full table-fixed border-collapse bg-white text-left text-sm [overflow-wrap:anywhere]">
             <colgroup>{[20, 14, 10, 11, 13, 10, 22].map((ancho, indice) => <col key={indice} style={{ width: `${ancho}%` }} />)}</colgroup>
@@ -222,13 +223,13 @@ export default function Lista() {
                 <th key={titulo} scope="col" className="px-3 py-4">{titulo}</th>)}
             </tr></thead>
             <tbody>{filas.map((fila) => <tr key={fila.id} className="border-b border-slate-200">
-              <td className="p-3 font-semibold"><div className="flex items-center gap-3"><span aria-hidden="true" className="conductor-avatar">{fila.nombreCompleto?.trim().split(/\s+/).slice(0, 2).map((parte) => parte[0]).join('').toUpperCase() || '?'}</span><span className="min-w-0">{nombreParaMostrar(fila.nombreCompleto)}</span></div></td>
+              <td className="p-3 font-semibold"><div className="flex items-center gap-3"><span aria-hidden="true" className="conductor-avatar">{fila.nombreCompleto?.trim().split(/\s+/).slice(0, 2).map((parte) => parte[0]).join('').toUpperCase() || '?'}</span><Link className="conductor-nombre-link min-w-0" to={`/conductores/${encodeURIComponent(fila.id)}`}>{nombreParaMostrar(fila.nombreCompleto)}</Link></div></td>
               <td className="p-3 tabular-nums text-gris">{fila.telefono}</td>
               <td className="p-3"><EstadoBadge estado={fila.estado} /></td>
               <td className="p-3"><EstadoBadge estado={fila.estadoJornada} /></td>
               <td className="p-3"><EstadoBadge estado={fila.estadoDisponibilidad} /></td>
               <td className="p-3">{etiquetaVehiculo(fila.vehiculo)}</td>
-              <td className="p-3">{acciones(fila)}</td>
+              <td className="p-3"><div className="conductor-enlaces-acciones">{acciones(fila)}<Link className="conductor-detalle-link" to={`/conductores/${encodeURIComponent(fila.id)}`} aria-label={`Ver detalle de ${nombreParaMostrar(fila.nombreCompleto)}`}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m9 5 7 7-7 7" /></svg></Link></div></td>
             </tr>)}</tbody>
           </table>}
           <p role="status" key={estado} className="conductores-pie">{resumenResultados(filas.length, data.length)}</p>
