@@ -1,0 +1,552 @@
+/* Excepcion consciente a la regla de no crear CSS de pagina, justificada en la spec:
+   Tailwind no alcanza el DOM que Leaflet crea fuera del arbol de React. Todos los colores
+   salen de los tokens de src/index.css; no hay ningun hexadecimal nuevo en este archivo. */
+
+.mapa-pagina {
+  --mapa-linea: color-mix(in srgb, var(--color-gris) 22%, white);
+  --mapa-fondo: color-mix(in srgb, var(--color-gris) 6%, white);
+  --mapa-sombra: color-mix(in srgb, var(--color-ink-950) 14%, transparent);
+  --mapa-foco: var(--color-azul);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Fila de chips */
+
+.mapa-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mapa-chip {
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid var(--mapa-linea);
+  background: white;
+  color: var(--color-gris);
+  font-size: 13px;
+}
+
+.mapa-chip--activo,
+.mapa-chip--activo:hover {
+  background: var(--color-ink-950);
+  border-color: var(--color-ink-950);
+  color: white;
+}
+
+.mapa-chip:focus-visible,
+.mapa-persona:focus-visible,
+.mapa-persona-enlace:focus-visible,
+.mapa-popup-enlace:focus-visible,
+.mapa-nota-teselas-cerrar:focus-visible,
+.mapa-vacio-enlace:focus-visible {
+  outline: 2px solid var(--mapa-foco);
+  outline-offset: 2px;
+}
+
+.mapa-chip-conteo {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+/* Panel: mapa a la izquierda, directorio a la derecha */
+
+.mapa-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 308px;
+  overflow: hidden;
+  border: 1px solid var(--mapa-linea);
+  border-radius: 12px;
+  background: white;
+}
+
+.mapa-lienzo {
+  position: relative;
+  min-width: 0;
+  background: var(--mapa-fondo);
+}
+
+/* Leaflet no calcula el alto desde el contenido: se lo fijamos aqui. */
+.mapa-lienzo .leaflet-container {
+  height: 585px;
+  width: 100%;
+  min-height: 420px;
+}
+
+.mapa-icono {
+  background: transparent;
+  border: none;
+}
+
+/* Marcador por color, con iniciales y nunca con el nombre completo */
+
+.mapa-marcador {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  min-width: 48px;
+  padding: 0 6px;
+  border: 2px solid white;
+  border-radius: 7px;
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 750;
+  background: var(--color-verde);
+  box-shadow: 0 2px 7px var(--mapa-sombra);
+  position: relative;
+}
+
+.mapa-marcador--verde { background: var(--color-verde); }
+.mapa-marcador--azul { background: var(--color-azul); }
+.mapa-marcador--gris { background: var(--color-gris); }
+.mapa-marcador--ambar { background: var(--color-ambar); }
+
+.mapa-marcador::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: inherit;
+  border-right: 2px solid white;
+  border-bottom: 2px solid white;
+}
+
+/* Punto de color decorativo: el significado real va en el texto que lo acompaña */
+
+.mapa-punto {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mapa-punto--verde { color: var(--color-verde); }
+.mapa-punto--azul { color: var(--color-azul); }
+.mapa-punto--gris { color: var(--color-gris); }
+.mapa-punto--ambar { color: var(--color-ambar); }
+
+/* Distintivo de la vista por defecto */
+
+.mapa-distintivo {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 450;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: white;
+  box-shadow: 0 2px 8px var(--mapa-sombra);
+  color: var(--color-ink-950);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mapa-distintivo-icono {
+  width: 14px;
+  height: 14px;
+  color: var(--color-gris);
+}
+
+/* Estados vacios sobre el mapa */
+
+.mapa-vacio {
+  position: absolute;
+  inset: 0;
+  z-index: 460;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0;
+  padding: 24px;
+  background: color-mix(in srgb, var(--color-gris) 10%, white);
+  color: var(--color-gris);
+  text-align: center;
+  font-size: 14px;
+}
+
+.mapa-vacio-icono {
+  width: 32px;
+  height: 32px;
+  color: var(--color-gris);
+}
+
+.mapa-vacio-titulo {
+  margin: 0;
+  color: var(--color-ink-950);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.mapa-vacio-texto {
+  margin: 0;
+  max-width: 46ch;
+  line-height: 1.6;
+}
+
+.mapa-vacio-enlace {
+  margin-top: 6px;
+  color: var(--color-azul);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: underline;
+}
+
+/* Aviso de caida de la capa de teselas: role="status", nunca alert */
+
+.mapa-nota-teselas {
+  position: absolute;
+  bottom: 35px;
+  left: 15px;
+  right: 55px;
+  z-index: 450;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 13px;
+  border-radius: 7px;
+  background: white;
+  box-shadow: 0 2px 8px var(--mapa-sombra);
+  color: var(--color-gris);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.mapa-nota-teselas p {
+  margin: 0;
+}
+
+.mapa-nota-teselas-cerrar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 2px;
+  border: 0;
+  background: none;
+  color: var(--color-gris);
+  cursor: pointer;
+}
+
+/* Contenido de la ventana emergente (React) sobre el contenedor de Leaflet */
+
+.mapa-popup :is(.leaflet-popup-content-wrapper, .leaflet-popup-content) {
+  font-family: var(--font-sans);
+}
+
+.mapa-popup .leaflet-popup-content {
+  margin: 16px 20px;
+  min-width: 180px;
+  font-size: 13px;
+}
+
+.mapa-popup-nombre {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--color-ink-950);
+  font-size: 15px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.mapa-popup-estado {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 9px;
+  color: var(--color-gris);
+  font-size: 12px;
+}
+
+.mapa-popup-linea {
+  margin: 9px 0;
+  color: var(--color-ink-950);
+}
+
+.mapa-popup-enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  color: var(--color-azul);
+  font-weight: 650;
+}
+
+.mapa-popup-flecha {
+  width: 14px;
+  height: 14px;
+}
+
+/* Directorio lateral: la via accesible de todo lo que muestra el mapa */
+
+.mapa-directorio {
+  display: flex;
+  flex-direction: column;
+  max-height: 647px;
+  border-left: 1px solid var(--mapa-linea);
+}
+
+.mapa-directorio-cabecera {
+  padding: 19px 20px;
+  border-bottom: 1px solid var(--mapa-linea);
+}
+
+.mapa-directorio-total {
+  margin: 0;
+  color: var(--color-ink-950);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mapa-directorio-pie {
+  margin: 5px 0 0;
+  color: var(--color-gris);
+  font-size: 12px;
+}
+
+.mapa-directorio-lista {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mapa-directorio-cargando {
+  margin: 0;
+  padding: 25px 20px;
+  color: var(--color-gris);
+  font-size: 14px;
+}
+
+.mapa-directorio-vacio {
+  display: grid;
+  gap: 8px;
+  padding: 62px 25px;
+  color: var(--color-gris);
+  text-align: center;
+  font-size: 13px;
+}
+
+.mapa-directorio-vacio-titulo {
+  margin: 0;
+  color: var(--color-ink-950);
+  font-weight: 650;
+}
+
+.mapa-directorio-vacio-texto {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.mapa-directorio-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 18px;
+  border-top: 1px solid var(--mapa-linea);
+  background: var(--mapa-fondo);
+  color: var(--color-gris);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mapa-directorio-nota-icono {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.mapa-persona-fila {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-gris) 12%, white);
+}
+
+.mapa-persona {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 17px 18px;
+  border: 0;
+  background: white;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mapa-persona:hover,
+.mapa-persona--seleccionada {
+  background: var(--mapa-fondo);
+}
+
+.mapa-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-gris) 12%, white);
+  color: var(--color-gris);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mapa-persona-datos {
+  display: block;
+  min-width: 0;
+}
+
+.mapa-persona-nombre {
+  display: block;
+  color: var(--color-ink-950);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.mapa-persona-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--color-gris);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.mapa-persona-enlace {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 0 14px;
+  border-left: 1px solid color-mix(in srgb, var(--color-gris) 12%, white);
+  color: var(--color-gris);
+}
+
+.mapa-persona-enlace:hover {
+  color: var(--color-azul);
+}
+
+/* Leyenda: texto real, el punto de color es decorativo */
+
+.mapa-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 13px;
+  padding: 15px 21px;
+  border: 1px solid var(--mapa-linea);
+  border-radius: 12px;
+  background: white;
+  color: var(--color-gris);
+  font-size: 12px;
+}
+
+.mapa-leyenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Aviso informativo de los 5 minutos */
+
+.mapa-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 0;
+  padding: 13px 16px;
+  border: 1px solid color-mix(in srgb, var(--color-ambar) 30%, white);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-ambar) 8%, white);
+  color: var(--color-ambar);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mapa-aviso-icono {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+/* Por debajo del breakpoint de tablet el directorio cae bajo el mapa, que es lo unico
+   que hace el mapa legible en movil. Sin scroll horizontal a 320 px. */
+
+@media (max-width: 1000px) {
+  .mapa-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mapa-lienzo .leaflet-container {
+    height: 480px;
+  }
+
+  .mapa-directorio {
+    max-height: 280px;
+    border-left: 0;
+    border-top: 1px solid var(--mapa-linea);
+  }
+
+  .mapa-directorio-lista {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mapa-persona-fila {
+    border-right: 1px solid color-mix(in srgb, var(--color-gris) 12%, white);
+  }
+}
+
+@media (max-width: 720px) {
+  .mapa-lienzo .leaflet-container {
+    height: 410px;
+    min-height: 360px;
+  }
+
+  .mapa-directorio {
+    max-height: 270px;
+  }
+
+  .mapa-directorio-lista {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mapa-filtros {
+    gap: 7px;
+  }
+
+  .mapa-chip {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .mapa-leyenda {
+    padding: 14px 16px;
+    gap: 10px 16px;
+    font-size: 11px;
+  }
+}
