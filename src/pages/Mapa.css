@@ -65,6 +65,7 @@
 
 .mapa-lienzo {
   position: relative;
+  isolation: isolate;
   min-width: 0;
   background: var(--mapa-fondo);
 }
