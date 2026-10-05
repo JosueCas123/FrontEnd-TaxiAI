@@ -1,8 +1,8 @@
-import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { onlineManager, useIsFetching, useQuery } from '@tanstack/react-query'
-import { MapContainer, Marker, Popup, TileLayer, ZoomControl, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import MapaFlota from '../components/MapaFlota'
 import './Mapa.css'
 import { apiFetch } from '../api/client'
 import type { ConductorMapa } from '../api/types'
@@ -11,11 +11,8 @@ import { Alert } from '../components/ui/alert'
 import { Button } from '../components/ui/button'
 import {
   CATEGORIAS_FILTRO,
-  CENTRO_INICIAL_MAPA,
   CLAVE_CONDUCTORES_MAPA,
   ETIQUETAS_COLOR,
-  MAX_ZOOM_MAPA,
-  ZOOM_INICIAL_MAPA,
   antiguedadUbicacionParaMostrar,
   conteoPorCategoria,
   conductoresConUbicacion,
@@ -32,10 +29,6 @@ import {
 } from '../lib/mapa'
 
 const RUTA_CONDUCTORES_MAPA = '/api/dashboard/conductores-mapa'
-const TESELAS = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-const ATRIBUCION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
-const PADDING_ENCUADRE: L.PointTuple = [75, 75]
 
 const ICONOS = {
   pin: 'M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
@@ -52,70 +45,12 @@ const esCancelacion = (error: unknown) =>
 
 const punto = (color: string) => <span aria-hidden="true" className={`mapa-punto mapa-punto--${color}`} />
 
-// Si Leaflet no llega a inicializarse, la pantalla cae aqui en vez de dejar un hueco
-// vacio. Envuelve solo el subarbol del mapa: un fallo de la tabla de estados de lectura
-// se muestra por su cuenta y no debe disfrazarse de mapa caido.
-class FalloDeMapa extends Component<{ children: ReactNode }, { caido: boolean }> {
-  state = { caido: false }
-
-  static getDerivedStateFromError() {
-    return { caido: true }
-  }
-
-  render() {
-    if (!this.state.caido) return this.props.children
-    return <div className="mapa-vacio">
-      <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="mapa-vacio-icono">
-        <path d={ICONOS.mapa} />
-      </svg>
-      <p className="mapa-vacio-titulo">El mapa no esta disponible</p>
-      <p className="mapa-vacio-texto">
-        La base cartografica no se pudo inicializar. Puedes consultar los conductores en el listado.
-      </p>
-      <Link className="mapa-vacio-enlace" to="/conductores">Ver conductores</Link>
-    </div>
-  }
-}
-
-// Permanece montado incluso sin puntos: un polling no debe simular un cambio de chip.
-function Encuadre({
-  conductores,
-  categoria,
-}: {
-  conductores: ConductorMapa[]
-  categoria: CategoriaFiltro
-}) {
-  const mapa = useMap()
-  const primerEncuadre = useRef(false)
-  const categoriaPrevia = useRef(categoria)
-
-  useEffect(() => {
-    const cambioFiltro = categoria !== categoriaPrevia.current
-    categoriaPrevia.current = categoria
-    const puntos = conductores.flatMap((conductor) =>
-      conductor.ubicacion
-        ? ([[conductor.ubicacion.latitud, conductor.ubicacion.longitud]] as L.LatLngTuple[])
-        : [],
-    )
-    if (puntos.length === 0) return
-    if (primerEncuadre.current && !cambioFiltro) return
-    primerEncuadre.current = true
-    mapa.fitBounds(L.latLngBounds(puntos), {
-      padding: PADDING_ENCUADRE,
-      maxZoom: MAX_ZOOM_MAPA,
-      animate: true,
-    })
-  }, [categoria, conductores, mapa])
-
-  return null
-}
-
 export default function Mapa() {
+  const [parametros] = useSearchParams()
   const { estaAutenticado } = useAuth()
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible')
   const [lecturaManual, setLecturaManual] = useState(false)
-  const [categoria, setCategoria] = useState<CategoriaFiltro>('todos')
+  const [categoria, setCategoria] = useState<CategoriaFiltro>(() => parametros.get('filtro') === 'ambar' ? 'ambar' : 'todos')
   const [seleccionado, setSeleccionado] = useState<string | null>(null)
   const [avisoTeselas, setAvisoTeselas] = useState(false)
   const lecturasEnVuelo = useIsFetching({ queryKey: CLAVE_CONDUCTORES_MAPA })
@@ -134,7 +69,7 @@ export default function Mapa() {
     return () => document.removeEventListener('visibilitychange', reevaluar)
   }, [])
 
-  const { data, error, isPending, fetchStatus, refetch } = useQuery({
+  const { data, dataUpdatedAt, error, isPending, fetchStatus, refetch } = useQuery({
     queryKey: CLAVE_CONDUCTORES_MAPA,
     queryFn: ({ signal }) => apiFetch<ConductorMapa[]>(RUTA_CONDUCTORES_MAPA, { signal }),
     enabled: estaAutenticado,
@@ -199,13 +134,10 @@ export default function Mapa() {
     setAvisoTeselas(false)
   }
 
-  const tituloMarcador = (conductor: ConductorMapa) =>
-    `${conductor.nombreCompleto}: ${estadoParaMostrar(conductor)}${getColorMarcador(conductor) === 'ambar' ? ' · Ubicacion desactualizada' : ''}`
-
   const descripcionUbicacion = (conductor: ConductorMapa) =>
     conductor.ubicacion === null && conductor.ultimaUbicacionRegistradaEn === null
       ? `${estadoParaMostrar(conductor)} · Sin ubicacion reportada`
-      : `${estadoParaMostrar(conductor)} · ${antiguedadUbicacionParaMostrar(conductor, Date.now())}`
+      : `${estadoParaMostrar(conductor)} · ${antiguedadUbicacionParaMostrar(conductor, dataUpdatedAt)}`
 
   return (
     <div className="mapa-pagina min-w-0">
@@ -271,59 +203,12 @@ export default function Mapa() {
       <section className="mapa-panel" aria-label="Mapa y directorio de conductores">
         <div className="mapa-lienzo" role="region"
           aria-label="Mapa de los conductores con la ultima ubicacion reportada por cada uno, segun GET /api/dashboard/conductores-mapa">
-          <FalloDeMapa>
-          <MapContainer ref={mapa} center={CENTRO_INICIAL_MAPA} zoom={ZOOM_INICIAL_MAPA}
-            scrollWheelZoom={false} touchZoom={false} boxZoom={false} doubleClickZoom={false}
-            zoomControl={false} attributionControl>
-            <TileLayer url={TESELAS} attribution={ATRIBUCION} maxZoom={18}
-              eventHandlers={{ tileload: alCargarTesela, tileerror: alFallarTesela }} />
-            <ZoomControl position="bottomright" />
-            <Encuadre conductores={pintables} categoria={categoria} />
-            {pintables.map((conductor) => conductor.ubicacion && (
-              <Marker key={conductor.id}
-                position={[conductor.ubicacion.latitud, conductor.ubicacion.longitud]}
-                keyboard={false}
-                title={tituloMarcador(conductor)}
-                eventHandlers={{ click: () => setSeleccionado(conductor.id) }}
-                ref={(instancia) => {
-                  if (instancia) marcadores.current.set(conductor.id, instancia)
-                  else marcadores.current.delete(conductor.id)
-                }}
-                icon={L.divIcon({
-                  className: 'mapa-icono',
-                  html: `<span class="mapa-marcador mapa-marcador--${getColorMarcador(conductor)}">${inicialesParaMostrar(conductor.nombreCompleto)}</span>`,
-                  iconSize: [50, 30],
-                  iconAnchor: [25, 35],
-                })}>
-                <Popup className="mapa-popup">
-                  <p className="mapa-popup-nombre">{conductor.nombreCompleto}</p>
-                  <p className="mapa-popup-estado">
-                    {punto(getColorMarcador(conductor))}
-                    {estadoParaMostrar(conductor)}
-                  </p>
-                  <p className="mapa-popup-linea">{textoVehiculoParaMostrar(conductor)}</p>
-                  {conductor.vehiculo && (
-                    <p className="mapa-popup-linea">
-                      {conductor.vehiculo.marca} {conductor.vehiculo.modelo} · {conductor.vehiculo.color}
-                    </p>
-                  )}
-                  <p className="mapa-popup-linea">
-                    {antiguedadUbicacionParaMostrar(conductor, Date.now())}
-                  </p>
-                  <Link className="mapa-popup-enlace"
-                    to={`/conductores/${encodeURIComponent(conductor.id)}`}>
-                    Ver conductor
-                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
-                      className="mapa-popup-flecha">
-                      <path d={ICONOS.flecha} />
-                    </svg>
-                  </Link>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-          </FalloDeMapa>
+          <MapaFlota conductores={pintables} ahora={dataUpdatedAt} categoria={categoria} mapaRef={mapa}
+            alSeleccionar={setSeleccionado} alCargarTesela={alCargarTesela} alFallarTesela={alFallarTesela}
+            marcadorRef={(id, instancia) => {
+              if (instancia) marcadores.current.set(id, instancia)
+              else marcadores.current.delete(id)
+            }} />
 
           <p className="mapa-distintivo">
             <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor"
