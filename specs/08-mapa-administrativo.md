@@ -1,6 +1,7 @@
 ﻿# SPEC 08 - Mapa administrativo
 
-> **Estado:** Implementada y verificada en navegador (2026-10-03). INT08 pendiente.
+> **Estado:** Implementada; correcciones de revision verificadas el 2026-10-05. INT08 pendiente.
+> **Revision BUILD autorizada:** La seccion "Correcciones de revision 2026-10-05" prevalece sobre las restricciones y la evidencia historica del 2026-10-03, incluida la excepcion autorizada para retirar tres refs sin uso de `Conductores/Detalle.tsx`.
 > **Depende de:** SPEC 01 (`01-fundacion-y-contratos.md`), SPEC 03 (`03-shell-y-navegacion.md`, INT03 pendiente), SPEC 05 (`05-conductores-listado-estados.md`, INT05 pendiente), SPEC 06 (`06-conductor-detalle-vehiculo.md`, INT06 pendiente).
 > **Patron de referencia:** SPEC 07 (`07-indicadores-inicio.md`) y SPEC 06 (`06-conductor-detalle-vehiculo.md`).
 > **Contrato externo:** `../backend/specs/11-tarifario-dashboard.md` seccion 3.4, y `../docs/ROADMAP_FRONTEND.md:462-518`.
@@ -293,7 +294,7 @@ La vista tiene **tres** momentos de cambio, y solo uno de ellos es automatico.
 
 El guardia del primer encuadre es un ref que **se consume solo cuando el encuadre ocurre de verdad**, es decir, cuando hay datos confirmados y al menos un marcador con `ubicacion`. Si la primera respuesta llega vacia, el guardia sigue activo y el primer encuadre se produce en la lectura siguiente que traiga marcadores. Una vez consumido, no vuelve a activarse durante la montaje de la pantalla.
 
-`fitBounds` se implementa con un componente hijo que consume `useMap()` y reacciona a un efecto con dependencia en la categoria del filtro y en el guardia del primer encuadre, **nunca** en el array de conductores. Depender de los datos seria exactamente el error que reencuadra cada 15 s.
+`fitBounds` se implementa con un componente hijo permanente que consume `useMap()`. El efecto observa categoria y datos para detectar la primera llegada de puntos, pero las guardas solo permiten encuadrar una vez inicialmente o ante un cambio explicito de categoria. La categoria previa se sincroniza incluso sin puntos. Los datos posteriores por si solos nunca autorizan un encuadre.
 
 El `fitBounds` de los cambios de chip es un efecto mas lento que el del primer encuadre porque su dependencia es la categoria; el del primer encuadre depende ademas del guardia. Si en un mismo render ocurrieran ambos, prevalece el del cambio de chip, porque es el moviento mas reciente e intencionado por el admin.
 
@@ -307,6 +308,7 @@ El `fitBounds` de los cambios de chip es un efecto mas lento que el del primer e
 | Refresco en vuelo con datos previos | Se conservan los valores confirmados; no se vuelve al esqueleto; el boton queda en `Actualizando...`. |
 | Error de red o `5xx` con datos previos | Se conservan los valores confirmados y se superpone un aviso no bloqueante de posible desactualizacion, con `Reintentar` cuando el error es recuperable. |
 | Error de red o `5xx` sin datos previos | Estado de error con `Reintentar`. No se presenta como un mapa vacio. |
+| Consulta pausada / navegador offline | Aviso de conexion con reanudacion automatica. Conserva datos previos; sin ellos, conteos no confirmados y directorio pendiente, nunca carga perpetua ni ceros inventados. No anuncia `Actualizando...` durante `fetchStatus: paused`. |
 | `403` | Se muestra el `message` del backend. No cierra sesion. |
 | `404` de ruta | Se muestra el mensaje recibido. Sin recuperacion especifica: es un caso de despliegue. |
 | Peticion cancelada por React Query | No se muestra como error. |
@@ -349,12 +351,12 @@ No se escribe en pantalla ningun codigo interno: solo el mensaje recibido y la d
 
 La caida de las **teselas** no es un error de la pantalla: el mapa base es una dependencia externa y su fallo no invalida los marcadores. Se replica la condicion de `app.js:184`, que dispara el aviso cuando fallan mas de tres teselas sin que ninguna haya cargado. Si Leaflet no llega a cargarse en absoluto, se muestra el estado de `app.js:176` con enlace a Conductores.
 
-El aviso tiene su propio ciclo de vida, gobernado por tres contadores observables en la capa de teselas (`carregadas`, `fallidas`, `descartado`):
+El aviso tiene su propio ciclo de vida, gobernado por una racha de fallos consecutivos y un descarte local. Cada tesela cargada reinicia la racha y limpia el descarte, incluso tras exitos anteriores en el mismo montaje:
 
 | Estado | Como se entra | Que muestra | Como se sale |
 |---|---|---|---|
-| `oculto` | Inicial, o tras una recuperacion | Nada | Aparece al superar tres fallos con cero teselas cargadas |
-| `visible` | `fallidas > 3` y `carregadas === 0` | El aviso con `role="status"` y su boton de cierre | Al cerrar, o al cargar la primera tesela |
+| `oculto` | Inicial, o tras una recuperacion | Nada | Aparece al superar tres fallos consecutivos sin una carga intermedia |
+| `visible` | Racha de `fallidas > 3`, sin descarte | El aviso con `role="status"` y su boton de cierre | Al cerrar, o al cargar una tesela |
 | `descartado` | El admin pulsa el boton de cierre | Nada | Al cargar la primera tesela, que **restablece** el estado a `oculto` |
 
 Cuatro reglas gobiernan ese ciclo:
@@ -362,7 +364,7 @@ Cuatro reglas gobiernan ese ciclo:
 1. **`role="status"`, nunca `role="alert"`.** Es una nota informativa sobre un recurso externo. Con `alert` el lector de pantalla interrumpiria al admin cada vez que el mapa se monta, y el mapa se monta en cada navegacion a esta pantalla.
 2. **El boton de cierre es opcional para el usuario**, no un requisito de lectura: el aviso es texto informativo, no informacion que el admin deba procesar. Lleva etiqueta accesible propia y no se oculta solo por tiempo.
 3. **La recuperacion lo oculta automaticamente.** En cuanto carga la primera tesela, el aviso desaparece sin pedir nada. Un aviso que sobrevive a la recuperación del mapa miente sobre el estado de la red.
-4. **La recuperacion tambien limpia el descarte.** Si el admin habia cerrado el aviso y la red vuelve, el estado vuelve a `oculto` y un fallo posterior si puede volver a mostrarlo. Lo que se conserva entre reinicios no es el descarte, sino la cuenta de fallos.
+4. **La recuperacion tambien limpia el descarte y la racha de fallos.** Si el admin habia cerrado el aviso y la red vuelve, el estado vuelve a `oculto` y una nueva racha de fallos puede mostrarlo en ese mismo montaje. Fallos aislados separados por exitos no se acumulan.
 
 El boton de cierre, si se pulsa mientras el mapa sigue sin red, deja el aviso oculto durante el resto de la vida de esa montaje del mapa: no se reabre por un fallo adicional mientras la red siga caida, porque reavisar cada tesela que falla seria peor que callar.
 
@@ -508,7 +510,7 @@ Las casillas se marcan solo con evidencia registrada en la seccion final. Ningun
 - [x] Un refetch de polling **no** cambia la vista del mapa, ni aunque cambien los marcadores.
 - [x] Cambiar de chip reencuadra con `fitBounds` y `padding [75, 75]`, con `maxZoom: 14`.
 - [x] Cambiar a un filtro sin ningun marcador no produce una vista en blanco sin explicacion.
-- [x] Ningun efecto de encuadre depende del array de conductores: cambiar los datos no dispara un `fitBounds`.
+- [x] Una vez consumido el primer encuadre, cambiar los datos no dispara un `fitBounds`; las guardas lo impiden incluso tras poblado-vacio-poblado.
 - [x] El mapa base y sus marcadores se ven con la hoja de estilos de Leaflet intacta: `.leaflet-container`, `.leaflet-control-zoom` y `.leaflet-popup-content` no pierden contra las utilidades de Tailwind v4, o si pierden, se aislaron por capas y no pisando `Mapa.css`.
 - [x] Si las teselas fallan mas de tres veces sin ninguna cargada, aparece el aviso superpuesto y los marcadores siguen visibles.
 - [x] El aviso de teselas se anuncia con `role="status"` y **nunca** con `role="alert"`.
@@ -543,7 +545,7 @@ Las casillas se marcan solo con evidencia registrada en la seccion final. Ningun
 
 - [x] `src/api/types.ts` no se modifico.
 - [x] No se modificaron `src/api/client.ts`, `src/api/token.ts`, `AuthContext`, `QueryClient`, `router.tsx` ni `Layout.tsx`.
-- [x] `src/pages/Conductores/Detalle.tsx` no se modifico, pese a sus tres errores `TS6133` preexistentes.
+- [x] Excepcion autorizada el 2026-10-05: `src/pages/Conductores/Detalle.tsx` solo pierde tres refs no utilizadas; no se modifican botones, cierres ni gestion de foco.
 - [x] La pantalla no consulta ninguna ruta API distinta de `/api/dashboard/conductores-mapa`.
 - [x] No hay codigo de Realtime, WebSocket ni suscripcion `postgres_changes`.
 - [x] No hay mutaciones, aprobaciones, suspensiones ni reasignaciones desde la pantalla.
@@ -551,7 +553,7 @@ Las casillas se marcan solo con evidencia registrada en la seccion final. Ningun
 - [x] Los enlaces a `/conductores/:id`, `/`, `/solicitudes`, `/tarifas` y `/configuracion` siguen funcionando.
 - [x] Logout y el evento `auth:unauthorized` intactos; el polling de SPEC 05 y SPEC 07 intactos.
 - [x] `npm run test:unit` termina correctamente.
-- [x] `npm run build` termina correctamente, **condicionado**: hoy falla por `Detalle.tsx:52-54`, fuera de alcance. Debe verificarse al menos que `tsc -b` no reporta ningun error atribuible a los archivos de esta spec, igual que hizo la SPEC 07.
+- [x] `npm run build` termina correctamente tras retirar las tres refs sin uso (2026-10-05). Persiste el aviso no bloqueante de Vite sobre un chunk mayor de 500 kB.
 - [x] El navegador verifica los casos anteriores con todas las llamadas API interceptadas y sin trafico real accidental.
 - [ ] INT08: `GET /api/dashboard/conductores-mapa` autenticado verificado contra el backend en `:3001`, con permiso real de administrador y `Cache-Control: no-store`. **Pendiente.**
 
@@ -690,6 +692,40 @@ INT01, INT03, INT04, INT05, INT06 e INT07 conservan su estado pendiente y no se 
 Cada uno de esos, si aterriza, va en su propia spec.
 
 ## Registro de evidencia
+
+### Correcciones de revision 2026-10-05
+
+Autorizadas por el usuario en BUILD, sin commits ni cambios a `specs/09-solicitudes-activas.md` (archivo ajeno sin seguimiento). Sin nuevas dependencias. Se leyo la skill `context7-mcp` y se consulto documentacion de TanStack Query sobre `fetchStatus: paused` y de Leaflet sobre carga de teselas.
+
+Cambios verificados:
+
+- `src/pages/Mapa.css`: `isolation: isolate` en el lienzo contiene los z-index del mapa bajo el header y el menu del shell.
+- `src/pages/Mapa.tsx`: aviso offline mediante `onlineManager` y `fetchStatus`; pausa distinta de actividad; conserva cache y guardas sincronas, `cancelRefetch: false` y polling de 15 s. No se altera la vigencia GPS ni la derivacion de colores.
+- `Encuadre` permanece montado y sincroniza categoria previa aun sin puntos. El primer fit se consume cuando ocurre, tambien si coincide con un cambio de filtro; ningun polling posterior lo repite.
+- Teselas: cuatro fallos consecutivos activan el aviso; cada carga reinicia racha y descarte. El cierre se conserva mientras no haya recuperacion.
+- Sin lectura confirmada, chips con guiones tanto en error como offline; directorio distingue carga, error y pausa. Ceros solo tras respuesta confirmada.
+- `src/pages/Conductores/Detalle.tsx`: eliminadas unicamente las declaraciones `botonCancelar`, `botonDescartar`, `botonCerrar`, que no tenian usos; se conserva el comportamiento existente.
+
+| Ejecucion nueva | Resultado |
+|---|---|
+| `npm run test:unit` | Exit 0: 9 archivos, 403/403 pruebas aprobadas. No se presentan como unitarios nuevos: las regresiones nuevas son de navegador. |
+| `npm run build` | Exit 0 en ambas ejecuciones: `tsc -b` y Vite 6.4.3, 228 modulos; ultima salida CSS 62.47 kB, JS 676.21 kB. Aviso de chunk >500 kB, no error. |
+| `git diff --check` | Exit 0, sin errores de whitespace; avisos de conversion LF a CRLF del repositorio. |
+| `npm run dev -- --host 127.0.0.1 --port 5188 --strictPort` + Playwright `browser_run_code_unsafe`, `filename: tests/browser/spec08.browser.js` | 5/5 escenarios PASS, contextos aislados cerrados al terminar, cero `pageerror` y cero APIs inesperadas. |
+
+El arnes versionado requiere Vite **dev**, no preview: observa `L.Map.prototype.fitBounds` y la instancia real de Leaflet mediante su modulo preempaquetado; no introduce hooks de prueba en produccion. Instala reloj de Playwright antes de la app para avanzar el polling. Todas las APIs y teselas se interceptan; recursos externos no previstos se bloquean.
+
+| Regresion nueva | Evidencia del arnes |
+|---|---|
+| Offline sin datos previos | `context.setOffline(true)` y `navigator.onLine === false`, aviso, guiones, sin carga/actualizacion perpetua ni requests offline; reconexion reanuda la consulta. |
+| Offline con datos previos | Conserva las dos filas; triple clic offline no emite requests ni bloquea permanentemente Actualizar; reconexion recupera. |
+| Error inicial y capas | HTTP 500, alerta sin ceros inventados ni directorio Cargando; GET 200 `[]` confirma ceros. Menu a 768 y 320 px queda encima del estado vacio comprobado por `elementFromPoint`; sin overflow horizontal. |
+| Encuadre y concurrencia | Inicial `[]`: cero fits; primera llegada: un fit; chip poblado: segundo fit; dos intervalos de polling de 15.1 s, poblado-vacio-poblado: conserva centro y dos fits. Chip vacio y llegada posterior no encuadran; chip explicito poblado si. Tres clics sincronicos emiten una lectura. |
+| Teselas mismo montaje | Requests interceptados en fallo, cierre, mas fallos sin reapertura, imagen PNG cargada, nuevo fallo con aviso, recuperacion que oculta aviso visible y tercer fallo con aviso. Mantiene dos marcadores. Eventos aislados error/exito no acumulan aviso. |
+
+Durante la preparacion del arnes hubo ejecuciones fallidas por usar un puerto que no servia Vite dev, arranque frio, devolver una instancia Leaflet no serializable, instalar el reloj despues de crear los temporizadores y reutilizar URLs de imagen. Se corrigio el arnes: puerto 5188, timeout de navegacion, callbacks sin retorno de mapa, reloj previo y URLs de lote con `no-store`. La ejecucion final anterior paso completa; esos intentos fallidos no se contabilizan como evidencia de exito.
+
+Limites: INT08 sigue **pendiente**, sin backend real autorizado, sin validacion de CORS, permisos reales ni caducidad real. No se ejecuto lector de pantalla. Las observaciones adicionales sobre coordenadas malformadas, equivalencia completa popup/directorio y cancelacion de callbacks `moveend` no se modifican en esta correccion acotada y no se dan por resueltas. La evidencia historica de V02 (montaje nuevo) no acreditaba recuperacion-fallo en el mismo montaje; la prueba nueva de esta seccion la reemplaza para ese criterio.
 
 **Implementacion ejecutada y verificada el 2026-10-03.** Las dos verificaciones previas se registran primero porque son la linea base. No se registran credenciales, tokens ni datos personales: los interceptores responden con un token ficticio y una flota ficticia.
 

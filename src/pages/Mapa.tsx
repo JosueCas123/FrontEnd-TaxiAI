@@ -1,6 +1,6 @@
-import { Component, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { useIsFetching, useQuery } from '@tanstack/react-query'
+import { onlineManager, useIsFetching, useQuery } from '@tanstack/react-query'
 import { MapContainer, Marker, Popup, TileLayer, ZoomControl, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import './Mapa.css'
@@ -78,43 +78,35 @@ class FalloDeMapa extends Component<{ children: ReactNode }, { caido: boolean }>
   }
 }
 
-// Unico componente hijo autorizado: consume `useMap()` porque el mapa solo existe dentro
-// del contexto de react-leaflet. Su unica dependencia de encuadre es la categoria del
-// filtro, jamas el array de conductores, que reencuadraria la vista cada 15 s.
+// Permanece montado incluso sin puntos: un polling no debe simular un cambio de chip.
 function Encuadre({
   conductores,
   categoria,
-  primerEncuadre,
-  categoriaPrevia,
 }: {
   conductores: ConductorMapa[]
   categoria: CategoriaFiltro
-  primerEncuadre: RefObject<boolean>
-  categoriaPrevia: RefObject<CategoriaFiltro>
 }) {
   const mapa = useMap()
+  const primerEncuadre = useRef(false)
+  const categoriaPrevia = useRef(categoria)
 
   useEffect(() => {
+    const cambioFiltro = categoria !== categoriaPrevia.current
+    categoriaPrevia.current = categoria
     const puntos = conductores.flatMap((conductor) =>
       conductor.ubicacion
         ? ([[conductor.ubicacion.latitud, conductor.ubicacion.longitud]] as L.LatLngTuple[])
         : [],
     )
     if (puntos.length === 0) return
-    // El cambio de chip es el movimiento mas reciente e intencionado: si coinciden ambos
-    // casos en el mismo render, prevalece sobre el primer encuadre automatico.
-    if (categoria === categoriaPrevia.current) {
-      // El guardia se consume solo cuando el encuadre ocurre de verdad, nunca al recibir
-      // una respuesta sin marcadores.
-      if (primerEncuadre.current) return
-      primerEncuadre.current = true
-    }
+    if (primerEncuadre.current && !cambioFiltro) return
+    primerEncuadre.current = true
     mapa.fitBounds(L.latLngBounds(puntos), {
       padding: PADDING_ENCUADRE,
       maxZoom: MAX_ZOOM_MAPA,
       animate: true,
     })
-  }, [categoria, mapa])
+  }, [categoria, conductores, mapa])
 
   return null
 }
@@ -128,11 +120,13 @@ export default function Mapa() {
   const [avisoTeselas, setAvisoTeselas] = useState(false)
   const lecturasEnVuelo = useIsFetching({ queryKey: CLAVE_CONDUCTORES_MAPA })
   const lecturaBloqueada = useRef(false)
-  const primerEncuadre = useRef(false)
-  const categoriaPrevia = useRef<CategoriaFiltro>('todos')
+  const conectado = useSyncExternalStore(
+    (notificar) => onlineManager.subscribe(notificar),
+    () => onlineManager.isOnline(),
+  )
   const mapa = useRef<L.Map | null>(null)
   const marcadores = useRef(new Map<string, L.Marker>())
-  const teselas = useRef({ cargadas: 0, fallidas: 0, descartado: false })
+  const teselas = useRef({ fallidas: 0, descartado: false })
 
   useEffect(() => {
     const reevaluar = () => setVisible(document.visibilityState === 'visible')
@@ -140,32 +134,32 @@ export default function Mapa() {
     return () => document.removeEventListener('visibilitychange', reevaluar)
   }, [])
 
-  const enCurso = lecturasEnVuelo > 0 || lecturaManual
-
-  const { data, error, isPending, refetch } = useQuery({
+  const { data, error, isPending, fetchStatus, refetch } = useQuery({
     queryKey: CLAVE_CONDUCTORES_MAPA,
     queryFn: ({ signal }) => apiFetch<ConductorMapa[]>(RUTA_CONDUCTORES_MAPA, { signal }),
     enabled: estaAutenticado,
     retry: retryMapa,
-    refetchInterval: () => intervaloRefrescoMapa({ visible, enCurso }),
+    refetchInterval: (query) => intervaloRefrescoMapa({ visible, enCurso: query.state.fetchStatus !== 'idle' }),
   })
+  const pausada = fetchStatus === 'paused'
+  const sinConexion = !conectado || pausada
+  const enCurso = !pausada && (lecturasEnVuelo > 0 || lecturaManual)
 
   const refrescar = () => {
-    if (lecturaBloqueada.current || !puedeDispararRefrescoMapa(enCurso)) return
+    if (pausada || lecturaBloqueada.current || !puedeDispararRefrescoMapa(enCurso)) return
     lecturaBloqueada.current = true
     setLecturaManual(true)
-    void refetch().finally(() => {
+    void refetch({ cancelRefetch: false }).finally(() => {
       lecturaBloqueada.current = false
       setLecturaManual(false)
     })
   }
 
   const elegirCategoria = (nueva: CategoriaFiltro) => {
-    categoriaPrevia.current = categoria
     setCategoria(nueva)
   }
 
-  const cargando = data === undefined && isPending
+  const cargando = data === undefined && isPending && !sinConexion
   const hayLecturaConfirmada = data !== undefined
   const fallo = error !== null && !esCancelacion(error) ? error : null
   const infoError = fallo === null ? null : informacionErrorMapa(fallo)
@@ -187,20 +181,18 @@ export default function Mapa() {
     mapaActual.flyTo(objetivo, mapaActual.getZoom(), { duration: 0.4 })
   }
 
-  // El aviso de teselas tiene su propio ciclo: tres contadores observables y ninguna
-  // persistencia. Recuperar la red lo oculta y limpia tambien el descarte.
+  // Cuatro fallos consecutivos, no acumulados durante toda la vida del mapa.
+  // Una carga recuperada reinicia tanto la racha como el descarte del usuario.
   const alCargarTesela = () => {
     const cuenta = teselas.current
-    cuenta.cargadas += 1
-    if (cuenta.cargadas === 1) {
-      cuenta.descartado = false
-      setAvisoTeselas(false)
-    }
+    cuenta.fallidas = 0
+    cuenta.descartado = false
+    setAvisoTeselas(false)
   }
   const alFallarTesela = () => {
     const cuenta = teselas.current
     cuenta.fallidas += 1
-    if (cuenta.fallidas > 3 && cuenta.cargadas === 0 && !cuenta.descartado) setAvisoTeselas(true)
+    if (cuenta.fallidas > 3 && !cuenta.descartado) setAvisoTeselas(true)
   }
   const cerrarAvisoTeselas = () => {
     teselas.current.descartado = true
@@ -234,11 +226,16 @@ export default function Mapa() {
         </Button>
       </div>
 
-      {lecturaManual && (
+      {lecturaManual && !pausada && (
         <p role="status" className="mt-3 text-sm text-gris">Actualizando ubicaciones de conductores...</p>
       )}
 
-      {infoError && hayLecturaConfirmada && (
+      {sinConexion && <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p>Sin conexion. La consulta se reanudara al recuperar la conexion.</p>
+        <p>{hayLecturaConfirmada ? 'Las ubicaciones mostradas pueden estar desactualizadas.' : 'Todavia no hay una lectura confirmada de conductores.'}</p>
+      </div>}
+
+      {!sinConexion && infoError && hayLecturaConfirmada && (
         <div role="status"
           className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p>{infoError.mensaje}</p>
@@ -250,7 +247,7 @@ export default function Mapa() {
         </div>
       )}
 
-      {infoError && !hayLecturaConfirmada && (
+      {!sinConexion && infoError && !hayLecturaConfirmada && (
         <Alert className="mt-4">
           <p>{infoError.mensaje}</p>
           <p>No se pudieron leer las ubicaciones de los conductores.</p>
@@ -267,7 +264,7 @@ export default function Mapa() {
           onClick={() => elegirCategoria(chip.clave)}>
           {chip.color !== null && punto(chip.color)}
           {chip.etiqueta}
-          <span className="mapa-chip-conteo">{cargando ? '–' : conteos[chip.clave]}</span>
+          <span className="mapa-chip-conteo">{hayLecturaConfirmada ? conteos[chip.clave] : '–'}</span>
         </Button>)}
       </div>
 
@@ -281,10 +278,7 @@ export default function Mapa() {
             <TileLayer url={TESELAS} attribution={ATRIBUCION} maxZoom={18}
               eventHandlers={{ tileload: alCargarTesela, tileerror: alFallarTesela }} />
             <ZoomControl position="bottomright" />
-            {pintables.length > 0 && (
-              <Encuadre conductores={pintables} categoria={categoria} primerEncuadre={primerEncuadre}
-                categoriaPrevia={categoriaPrevia} />
-            )}
+            <Encuadre conductores={pintables} categoria={categoria} />
             {pintables.map((conductor) => conductor.ubicacion && (
               <Marker key={conductor.id}
                 position={[conductor.ubicacion.latitud, conductor.ubicacion.longitud]}
@@ -433,7 +427,10 @@ export default function Mapa() {
                 </li>
               })}
             </ul>
-          ) : <p className="mapa-directorio-cargando" role="status">Cargando conductores...</p>}
+          ) : <p className="mapa-directorio-cargando" role="status">
+            {sinConexion ? 'Sin conexion. Conductores pendientes de consulta.' : infoError
+              ? 'No se pudieron cargar los conductores.' : cargando ? 'Cargando conductores...' : 'Conductores pendientes de consulta.'}
+          </p>}
           <p className="mapa-directorio-nota">
             <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="mapa-directorio-nota-icono">
