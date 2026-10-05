@@ -11,7 +11,10 @@ const ESTILOS: Record<string, string> = {
   en_servicio: 'bg-azul/10 text-azul',
   fuera_de_servicio: 'bg-gris/15 text-gris',
   desactualizado: 'bg-ambar/10 text-ambar',
-  buscando: 'bg-azul/10 text-azul',
+  creada: 'bg-ambar/10 text-ambar',
+  conductor_seleccionado: 'bg-ambar/10 text-ambar',
+  aceptada: 'bg-verde/10 text-verde',
+  buscando: 'bg-ambar/10 text-ambar',
   esperando_respuesta: 'bg-ambar/10 text-ambar',
   finalizada: 'bg-verde/10 text-verde',
 }
@@ -30,6 +33,9 @@ const ETIQUETAS: Record<string, string> = {
   fuera_de_servicio: 'Fuera de servicio',
   desactualizado: 'Ubicación desactualizada',
   buscando: 'Buscando conductor',
+  creada: 'Creada',
+  conductor_seleccionado: 'Conductor seleccionado',
+  aceptada: 'Aceptada',
   esperando_respuesta: 'Esperando respuesta',
   finalizada: 'Finalizada',
 }
